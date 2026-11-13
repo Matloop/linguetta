@@ -7,11 +7,11 @@
 //   2. curva: enquanto a cota cabe em uma troca por parágrafo, parte dos parágrafos ganha uma,
 //      espaçados em janelas (parágrafos/cota parágrafos pela posição global). Acima disso todo
 //      parágrafo ganha troca e o teto dele é round(coverage × palavras dele), no mínimo 1 e no
-//      máximo metade.
+//      máximo metade (até 50% de cobertura; acima disso o máximo segue a cobertura).
 //   3. o teto é limite, não obrigação: troca extra num parágrafo só com candidata boa
 //      (nota ≥ EXTRA_MIN).
 //   4. compensação: o que faltou vai para o parágrafo sem troca mais longe dos escolhidos; sem
-//      parágrafo livre, para o com mais espaço proporcional, até metade das palavras.
+//      parágrafo livre, para o com mais espaço proporcional, até o máximo da regra 2.
 //   5. nota: item do banco do usuário muito acima de tudo; depois a frequência do lema, se houver
 //      lista. No app web NÃO há lista de frequência (as do LingoBlend ficam no servidor local do
 //      Stremio): sem lista toda candidata vale 2 e o desempate é a ordem da IA, que o pedido manda
@@ -22,7 +22,7 @@
 import { countWords, lemmaKey } from '@linguetta/language';
 
 export const DEFAULT_COVERAGE = 0.1;
-export const MAX_COVERAGE = 0.5;
+export const MAX_COVERAGE = 1;
 export const REPEAT_GAP = 6;
 export const VERY_COMMON = 300;
 export const COMMON = 5000;
@@ -58,7 +58,9 @@ export function frequencyScore(frequency: Frequency | null, ...words: string[]):
 	return 1.5;
 }
 
-const halfOf = (words: number) => Math.max(1, Math.floor(words / 2));
+/** Máximo de palavras trocadas num parágrafo: metade até 50% de cobertura, depois a cobertura. */
+const ceilingOf = (words: number, coverage: number) =>
+	Math.max(1, coverage <= 0.5 ? Math.floor(words / 2) : Math.round(coverage * words));
 
 export function blendPlan(texts: readonly string[], sourceLang: string, coverage: number) {
 	const perText = texts.map((t) => countWords(t, sourceLang));
@@ -66,7 +68,7 @@ export function blendPlan(texts: readonly string[], sourceLang: string, coverage
 	const quota = coverage > 0 ? Math.round(coverage * words) : 0;
 	const perCue = quota > texts.length;
 	const caps = perText.map((w) =>
-		perCue ? Math.max(1, Math.min(Math.floor(w / 2), Math.round(coverage * w))) : 1
+		perCue ? Math.max(1, Math.min(ceilingOf(w, coverage), Math.round(coverage * w))) : 1
 	);
 	return {
 		perText,
@@ -130,7 +132,7 @@ export function selectSwaps<T extends Swap>(input: SelectInput<T>): T[][] {
 		let top: Scored<T> | null = null;
 		for (const c of scored[i]) {
 			if (out[i].includes(c.ann) || !eligible(c, i) || overlaps(i, c)) continue;
-			if (!first && (c.base < EXTRA_MIN || used[i] + c.words > halfOf(plan.perText[i]))) continue;
+			if (!first && (c.base < EXTRA_MIN || used[i] + c.words > ceilingOf(plan.perText[i], coverage))) continue;
 			if (!top || c.score > top.score) top = c;
 		}
 		return top;

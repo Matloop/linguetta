@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { countWords } from '@linguetta/language';
-import { REPEAT_GAP, selectSwaps, type Swap } from './select.ts';
+import { MAX_COVERAGE, REPEAT_GAP, selectSwaps, type Swap } from './select.ts';
 
 const para = (i: number) => `parágrafo número ${i} tem a palavra casa e mais algumas outras aqui`;
 const cand = (text: string, form: string, lemma: string): Swap => ({
@@ -52,6 +52,31 @@ describe('escolha das trocas', () => {
 		const chosen = out.flatMap((a, i) => (a.length ? [i] : []));
 		expect(chosen.length).toBeGreaterThan(1);
 		chosen.slice(1).forEach((v, k) => expect(v - chosen[k]).toBeGreaterThanOrEqual(REPEAT_GAP));
+	});
+
+	test('cobertura alta passa de metade do parágrafo', () => {
+		expect(MAX_COVERAGE).toBe(1);
+		const t = ['um dois três quatro cinco seis sete oito nove dez'];
+		const out = selectSwaps({
+			texts: t,
+			candidates: [t[0].split(' ').map((w) => cand(t[0], w, `x${w}`))],
+			sourceLang: 'pt',
+			targetLang: 'it',
+			coverage: 0.9
+		});
+		expect(out[0]).toHaveLength(9);
+	});
+
+	test('cobertura de 50% continua no teto de metade do parágrafo', () => {
+		const t = ['um dois três quatro cinco seis sete oito nove dez'];
+		const out = selectSwaps({
+			texts: t,
+			candidates: [t[0].split(' ').map((w) => cand(t[0], w, `x${w}`))],
+			sourceLang: 'pt',
+			targetLang: 'it',
+			coverage: 0.5
+		});
+		expect(out[0]).toHaveLength(5);
 	});
 
 	test('item do banco vem antes da ordem da IA', () => {

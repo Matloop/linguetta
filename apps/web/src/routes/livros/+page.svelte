@@ -1,75 +1,18 @@
 <script lang="ts">
-	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { inRange, rangeProgress, rangeState } from '#lib/blend/book-ui.ts';
 	import { languagePair } from '#lib/blend/filename.ts';
 	import { languageLabel } from '#lib/languages.ts';
 	import Icon from '#lib/ui/Icon.svelte';
 	import Mark from '#lib/ui/Mark.svelte';
-	import Popover from '#lib/ui/Popover.svelte';
-	import Select from '#lib/ui/Select.svelte';
 	import { toast } from '#lib/ui/app-state.svelte.ts';
-	import { browserSupabase } from '#lib/ui/media-upload.ts';
 	import { postAction } from '#lib/ui/post-action.ts';
+	import BlendWizard from './BlendWizard.svelte';
 	import type { PageProps } from './$types';
 
 	let { data }: PageProps = $props();
 
-	const MAX_BYTES = 50 * 1024 * 1024;
-
-	const languageOptions = $derived(
-		data.studyLanguages.map((l) => ({ value: l, label: languageLabel(l, 'pt') }))
-	);
-	let target = $state<string>('');
-	$effect(() => {
-		if (!target || !data.studyLanguages.includes(target)) {
-			target = data.active ?? data.studyLanguages[0] ?? '';
-		}
-	});
-
-	let fileInput: HTMLInputElement | undefined = $state();
-	let uploading = $state(false);
-	let uploadOpen = $state(false);
-	let uploadError = $state('');
-
-	async function upload(file: File) {
-		uploadError = '';
-		if (!/\.epub$/i.test(file.name)) return (uploadError = 'Escolha um arquivo .epub.');
-		if (file.size > MAX_BYTES) return (uploadError = 'O EPUB passa de 50 MB.');
-		if (!target) return (uploadError = 'Escolha o idioma do blend.');
-		uploading = true;
-		const id = crypto.randomUUID();
-		const { error } = await browserSupabase()
-			.storage.from('books')
-			.upload(`${data.userId}/${id}/original.epub`, file, {
-				contentType: 'application/epub+zip',
-				upsert: false
-			});
-		if (error) {
-			uploading = false;
-			uploadError = 'Não deu para enviar o arquivo. Tente de novo.';
-			return;
-		}
-		const res = await fetch(resolve('/livros/novo'), {
-			method: 'POST',
-			headers: { 'content-type': 'application/json' },
-			body: JSON.stringify({ id, language: target })
-		}).catch(() => null);
-		const body = (await res?.json().catch(() => null)) as { message?: string } | null;
-		uploading = false;
-		if (!res?.ok) {
-			uploadError = body?.message ?? 'Não deu para abrir o EPUB.';
-			return;
-		}
-		uploadOpen = false;
-		await goto(resolve('/livros/[id]', { id }));
-	}
-
-	function onPick(e: Event) {
-		const file = (e.currentTarget as HTMLInputElement).files?.[0];
-		if (file) void upload(file);
-		(e.currentTarget as HTMLInputElement).value = '';
-	}
+	let wizardOpen = $state(false);
 
 	async function setDevice(id: string, on: boolean) {
 		const r = await postAction('device', { id, on: String(on) });
@@ -90,51 +33,18 @@
 </svelte:head>
 
 {#snippet uploader()}
-	<Popover label="Enviar EPUB" bind:open={uploadOpen} width={320}>
-		{#snippet trigger({ toggle, expanded, id })}
-			<button
-				class="btn btn-primary"
-				type="button"
-				aria-haspopup="dialog"
-				aria-expanded={expanded}
-				aria-controls={id}
-				onclick={toggle}
-				data-testid="enviar-epub"><Icon name="upload" size="sm" />Enviar EPUB</button
-			>
-		{/snippet}
-		{#snippet children({ close })}
-			<div class="pop-form">
-				<span class="pop-title" id="blend-lang">Misturar em</span>
-				{#if languageOptions.length}
-					<Select options={languageOptions} bind:value={target} labelledby="blend-lang" />
-				{:else}
-					<p class="faint">Escolha um idioma de estudo no Perfil primeiro.</p>
-				{/if}
-				<p class="faint small">Arquivo .epub de até 50 MB. O original fica guardado para gerar de novo.</p>
-				{#if uploadError}<p class="err" role="alert">{uploadError}</p>{/if}
-				<input
-					bind:this={fileInput}
-					class="visually-hidden"
-					type="file"
-					accept=".epub,application/epub+zip"
-					onchange={onPick}
-					data-testid="arquivo-epub"
-				/>
-				<div class="pop-row">
-					<span class="sp"></span>
-					<button class="btn btn-ghost" type="button" onclick={close}>Cancelar</button>
-					<button
-						class="btn btn-primary"
-						type="button"
-						disabled={uploading || !target}
-						onclick={() => fileInput?.click()}
-						>{uploading ? 'Enviando…' : 'Escolher arquivo'}</button
-					>
-				</div>
-			</div>
-		{/snippet}
-	</Popover>
+	<button class="btn btn-primary" type="button" aria-haspopup="dialog" onclick={() => (wizardOpen = true)} data-testid="enviar-epub"
+		><Icon name="upload" size="sm" />Enviar EPUB</button
+	>
 {/snippet}
+
+<BlendWizard
+	open={wizardOpen}
+	studyLanguages={data.studyLanguages}
+	active={data.active}
+	userId={data.userId}
+	onclose={() => (wizardOpen = false)}
+/>
 
 <div class="ph">
 	<div>
@@ -289,31 +199,6 @@
 	}
 	.sp {
 		flex: 1;
-	}
-	.pop-form {
-		display: flex;
-		flex-direction: column;
-		gap: 10px;
-	}
-	.pop-title {
-		font-size: 14px;
-		font-weight: 500;
-		color: var(--ink-2);
-	}
-	.pop-row {
-		display: flex;
-		align-items: center;
-		gap: 8px;
-		margin-top: 4px;
-	}
-	.small {
-		margin: 0;
-		font-size: 13px;
-	}
-	.err {
-		margin: 0;
-		font-size: 13.5px;
-		color: var(--terra-ink);
 	}
 	@media (max-width: 768px) {
 		.top {

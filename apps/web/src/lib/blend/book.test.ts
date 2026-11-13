@@ -1,6 +1,15 @@
 import { describe, expect, test } from 'bun:test';
 import { strFromU8, unzipSync } from 'fflate';
-import { buildBlend, chapterInfos, chapterParts, partWords, type Candidate } from './book.ts';
+import {
+	buildBlend,
+	chapterDoc,
+	chapterInfos,
+	chapterParts,
+	partWords,
+	locatedCandidates,
+	previewParagraph,
+	type Candidate
+} from './book.ts';
 import { openEpub } from './epub.ts';
 import { makeEpub } from './test-epub.ts';
 
@@ -42,6 +51,8 @@ describe('livro', () => {
 		expect(partWords(0.1)).toBe(267);
 		expect(partWords(0.5)).toBe(100);
 		expect(partWords(0.01)).toBe(600);
+		// Acima de 50% o pedaço encolhe: no máximo 60 candidatas por chamada, como a 50%.
+		expect(partWords(1)).toBe(60);
 	});
 
 	test('gera EPUB válido só com os links escolhidos', () => {
@@ -73,5 +84,37 @@ describe('livro', () => {
 		expect(strFromU8(files['OEBPS/text/c1.xhtml'])).toBe(strFromU8(epub.files['OEBPS/text/c1.xhtml']));
 		// Reabre o resultado.
 		expect(openEpub(out).spine).toHaveLength(3);
+	});
+});
+
+describe('prévia', () => {
+	const medio = Array.from({ length: 40 }, (_, i) => `palavra${i}`).join(' ');
+	const longo = Array.from({ length: 90 }, (_, i) => `termo${i}`).join(' ');
+	const docOf = (body: string) => {
+		const epub = openEpub(makeEpub([{ title: 'I', body }]));
+		return chapterDoc(epub, epub.spine[1])!;
+	};
+
+	test('escolhe o primeiro parágrafo de 30 a 60 palavras', () => {
+		expect(previewParagraph(docOf(`<p>Curto aqui.</p><p>${longo}</p><p>${medio}</p>`), 'pt')).toBe(2);
+	});
+
+	test('sem parágrafo médio, fica com o mais longo', () => {
+		expect(previewParagraph(docOf(`<p>Curto aqui.</p><p>${longo}</p><p>Outro curto.</p>`), 'pt')).toBe(1);
+	});
+
+	test('capítulo sem texto não tem prévia', () => {
+		expect(previewParagraph(docOf('<p></p>'), 'pt')).toBeNull();
+	});
+
+	test('candidatas da prévia: só as que acham lugar, com a posição', () => {
+		const doc = docOf('<p>A casa era grande e Simão olhou o rio.</p>');
+		const out = locatedCandidates(
+			doc,
+			0,
+			[c(0, 'casa', 'casa'), c(0, 'rio', 'fiume'), c(0, 'Simão', 'Simone'), c(0, 'mar', 'mare')],
+			'pt'
+		);
+		expect(out.map((x) => [x.form, x.target, x.start])).toEqual([['rio', 'fiume', doc.paragraphs[0].text.indexOf('rio')]]);
 	});
 });

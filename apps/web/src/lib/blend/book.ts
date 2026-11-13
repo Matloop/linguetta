@@ -70,15 +70,18 @@ export const paragraphText = (text: string) => text.replace(/\s+/g, ' ').trim();
 
 /** Parte das palavras que a IA propõe: mais do que a cota, para a escolha ter folga. */
 export function candidateShare(coverage: number): number {
-	return Math.max(0.05, Math.min(0.6, coverage * 1.5));
+	return Math.max(0.05, Math.min(coverage <= 0.5 ? 0.6 : 1, coverage * 1.5));
 }
 
 /**
  * Palavras por pedaço: cada chamada da IA responde umas 40 candidatas, o que cabe no tempo
  * da função da Vercel e no limite de tokens do plano grátis. Mais cobertura, pedaço menor.
+ * O piso de 100 palavras vale até 60% de candidatas; acima disso o pedaço encolhe para nunca
+ * pedir mais de 60 candidatas numa chamada (o máximo que 50% de cobertura já pedia).
  */
 export function partWords(coverage: number): number {
-	return Math.round(Math.max(100, Math.min(600, 40 / candidateShare(coverage))));
+	const share = candidateShare(coverage);
+	return Math.round(Math.max(Math.min(100, 60 / share), Math.min(600, 40 / share)));
 }
 
 /** Pedaços do capítulo: faixas [de, até) de parágrafos, com até `size` palavras cada. */
@@ -143,6 +146,39 @@ export interface BuildOptions {
 	frequency?: Frequency | null;
 }
 
+/** Candidatas que acham lugar no parágrafo, com a forma como está no texto e a posição. */
+export function locatedCandidates(
+	doc: XhtmlDoc,
+	para: number,
+	candidates: readonly Candidate[],
+	bookLanguage: string
+): (Candidate & { start: number })[] {
+	const out: (Candidate & { start: number })[] = [];
+	for (const c of candidates) {
+		if (c.para !== para) continue;
+		const taken = out.filter((x) => x.form === c.form).map((x) => ({ start: x.start, end: x.start + x.form.length }));
+		const at = locateCandidate(doc, c, bookLanguage, taken);
+		if (!at) continue;
+		out.push({ ...c, form: doc.paragraphs[para].text.slice(at.start, at.end), start: at.start });
+	}
+	return out;
+}
+
+const PREVIEW_MIN = 30;
+const PREVIEW_MAX = 60;
+
+/**
+ * Parágrafo da prévia: o primeiro com 30 a 60 palavras (cabe numa chamada da IA com
+ * candidata para cada palavra); sem nenhum, o mais longo. Capítulo sem texto: null.
+ */
+export function previewParagraph(doc: XhtmlDoc, bookLanguage: string): number | null {
+	const words = doc.paragraphs.map((p) => countWords(p.text, bookLanguage));
+	const medium = words.findIndex((w) => w >= PREVIEW_MIN && w <= PREVIEW_MAX);
+	if (medium >= 0) return medium;
+	const longest = words.indexOf(Math.max(0, ...words));
+	return longest >= 0 && words[longest] > 0 ? longest : null;
+}
+
 type Located = Candidate & { start: number; global: number };
 
 /**
@@ -163,22 +199,15 @@ export function buildBlend(
 		if (!item || !doc) continue;
 		const offset = texts.length;
 		docs.push({ item, doc, offset });
-		const per: Located[][] = doc.paragraphs.map(() => []);
-		for (const c of ch.candidates) {
-			if (!per[c.para]) continue;
-			const same = per[c.para].filter((x) => x.form === c.form);
-			const at = locateCandidate(
-				doc,
-				c,
-				opts.bookLanguage,
-				same.map((x) => ({ start: x.start, end: x.start + x.form.length }))
+		doc.paragraphs.forEach((p, para) => {
+			texts.push(p.text);
+			candidates.push(
+				locatedCandidates(doc, para, ch.candidates, opts.bookLanguage).map((x) => ({
+					...x,
+					global: offset + para
+				}))
 			);
-			if (!at) continue;
-			const form = doc.paragraphs[c.para].text.slice(at.start, at.end);
-			per[c.para].push({ ...c, form, start: at.start, global: offset + c.para });
-		}
-		for (const p of doc.paragraphs) texts.push(p.text);
-		candidates.push(...per);
+		});
 	}
 
 	const chosen = selectSwaps({

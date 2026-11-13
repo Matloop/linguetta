@@ -78,11 +78,13 @@ test('envia um EPUB, configura o blend e vê o livro na lista', async ({ page })
 		mimeType: 'application/epub+zip',
 		buffer: Buffer.from(makeEpub())
 	});
-	await expect(page).toHaveURL(/\/livros\/[0-9a-f-]{36}$/, { timeout: 15_000 });
-	await expect(page.getByRole('heading', { level: 1 })).toHaveText('Manhãs no morro');
+	// O modal segue para a mistura sem sair da lista.
+	const wizard = page.getByRole('dialog', { name: 'Configure a mistura' });
+	await expect(wizard).toBeVisible({ timeout: 15_000 });
+	await expect(wizard).toContainText('Manhãs no morro');
 	// O sumário (nav) não conta como capítulo.
 	await expect(page.getByTestId('resumo')).toHaveText(/^2 capítulos, \d+ palavras$/);
-	await expect(page.getByLabel('Língua do livro')).toHaveValue('pt-BR');
+	await expect(page.getByRole('combobox', { name: 'Língua do livro' })).toHaveText(/Português \(Brasil\)/);
 
 	// Intervalo: só o segundo capítulo.
 	await page.getByRole('button', { name: 'Intervalo de capítulos' }).click();
@@ -92,9 +94,9 @@ test('envia um EPUB, configura o blend e vê o livro na lista', async ({ page })
 
 	if (process.env.LIVROS_E2E_IA) {
 		await page.getByTestId('gerar').click();
-		await expect(page.getByRole('link', { name: 'Ler' })).toBeVisible({ timeout: 200_000 });
-		await expect(page.getByTestId('estado')).toHaveText('1 capítulo pronto');
-		const href = await page.getByRole('link', { name: 'Baixar EPUB' }).getAttribute('href');
+		const ready = page.getByRole('dialog', { name: 'Seu livro está pronto' });
+		await expect(ready).toBeVisible({ timeout: 200_000 });
+		const href = await ready.getByRole('link', { name: 'Baixar EPUB' }).getAttribute('href');
 		const res = await page.request.get(href!);
 		expect(res.ok()).toBe(true);
 		expect(res.headers()['content-disposition'] ?? '').toContain('.epub');
@@ -107,11 +109,9 @@ test('envia um EPUB, configura o blend e vê o livro na lista', async ({ page })
 		console.log(`blend: ${links.length} links`, links.map((m) => `${m[2]} ← ${m[1]}`));
 		expect(links.length).toBeGreaterThan(0);
 		expect(c2).toContain('<h1>A chuva</h1>');
-	} else {
-		await page.getByTestId('gerar').waitFor();
 	}
 
-	await page.goto('/livros');
+	await page.getByRole('button', { name: 'Fechar' }).click();
 	const book = page.getByTestId('livro');
 	await expect(book).toHaveCount(1);
 	await expect(book).toContainText('Manhãs no morro');
@@ -166,8 +166,10 @@ test('aparelho lista o livro, baixa pela URL assinada e manda a posição', asyn
 		mimeType: 'application/epub+zip',
 		buffer: Buffer.from(epub)
 	});
-	await expect(page).toHaveURL(/\/livros\/[0-9a-f-]{36}$/, { timeout: 15_000 });
-	const bookId = page.url().split('/').at(-1)!;
+	await expect(page.getByRole('dialog', { name: 'Configure a mistura' })).toBeVisible({ timeout: 15_000 });
+	await page.getByRole('button', { name: 'Fechar' }).click();
+	const href = await page.getByTestId('livro').getByRole('link', { name: 'Manhãs no morro' }).getAttribute('href');
+	const bookId = href!.split('/').at(-1)!;
 	const s = await sessionOf(page);
 	const user = { apikey: process.env.PUBLIC_SUPABASE_PUBLISHABLE_KEY!, authorization: `Bearer ${s.token}` };
 	const path = `${s.userId}/${bookId}/v1.epub`;

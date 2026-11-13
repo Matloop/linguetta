@@ -1,5 +1,23 @@
 import { expect, test } from 'bun:test';
-import { rangeProgress, rangeState, rangeSummary, type ChapterRow } from './book-ui.ts';
+import { rangeProgress, rangeState, rangeSummary, swapSegments, type ChapterRow } from './book-ui.ts';
+
+test('prévia: o texto vira trechos, com a troca no lugar da forma', () => {
+	const text = 'A casa era grande.';
+	const swap = (form: string, target: string) => ({
+		form,
+		target,
+		translation: form,
+		start: text.indexOf(form)
+	});
+	expect(swapSegments(text, [swap('casa', 'casa nuova'), swap('grande', 'grande!')])).toEqual([
+		{ text: 'A ' },
+		{ text: 'casa nuova', translation: 'casa' },
+		{ text: ' era ' },
+		{ text: 'grande!', translation: 'grande' },
+		{ text: '.' }
+	]);
+	expect(swapSegments(text, [])).toEqual([{ text }]);
+});
 
 const ch = (spine: number, words: number, status: ChapterRow['status'] = 'pendente', partsDone = 0, parts = 0): ChapterRow => ({
 	spine,

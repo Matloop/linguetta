@@ -50,4 +50,22 @@ export function rangeState(chapters: readonly ChapterRow[], from: number, to: nu
 	return `${done} de ${plural(list.length, 'capítulo pronto', 'capítulos prontos')}`;
 }
 
-export const coverageLabel = (coverage: number) => `${Math.round(coverage * 100)}%`;
+export type PreviewSegment = { text: string; translation?: string };
+
+/** Texto da prévia em trechos: as trocas (em ordem, sem sobrepor) no lugar da forma. */
+export function swapSegments(
+	text: string,
+	swaps: readonly { start: number; form: string; target: string; translation: string }[]
+): PreviewSegment[] {
+	const out: PreviewSegment[] = [];
+	let at = 0;
+	for (const s of swaps) {
+		if (s.start > at) out.push({ text: text.slice(at, s.start) });
+		out.push({ text: s.target, translation: s.translation });
+		at = s.start + s.form.length;
+	}
+	if (at < text.length || out.length === 0) out.push({ text: text.slice(at) });
+	return out;
+}
+
+export const coverageLabel =(coverage: number) => `${Math.round(coverage * 100)}%`;
