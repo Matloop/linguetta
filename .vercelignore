@@ -9,3 +9,7 @@ playwright-report/
 # Worktrees de agentes e saídas locais.
 .claude/
 apps/web/scripts/srs-sim/out/
+# Dicionários, modelos e cache locais do stremio-server (GBs; o web não usa).
+packages/stremio-server/server/.dict/
+packages/stremio-server/server/.models/
+packages/stremio-server/server/.cache/
