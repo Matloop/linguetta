@@ -89,6 +89,11 @@
 		/></symbol
 	>
 	<symbol id="i-check" viewBox="0 0 24 24"><path d="M5 13L9 17L19 7" /></symbol>
+	<symbol id="i-lock" viewBox="0 0 24 24"
+		><rect x="5" y="10.5" width="14" height="10" rx="2" /><path
+			d="M8.5 10.5V7.5a3.5 3.5 0 0 1 7 0v3"
+		/></symbol
+	>
 	<symbol id="i-down" viewBox="0 0 24 24"><path d="M6 9L12 15L18 9" /></symbol>
 	<symbol id="i-clock" viewBox="0 0 24 24"
 		><path d="M12 6L12 12L18 12" /><path

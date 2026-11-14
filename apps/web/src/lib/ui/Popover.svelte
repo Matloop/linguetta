@@ -18,7 +18,8 @@
 	}: {
 		open?: boolean;
 		label: string;
-		align?: 'start' | 'end';
+		/** 'center': centrado sob o gatilho (nó da trilha do curso). */
+		align?: 'start' | 'end' | 'center';
 		/** 'above' para gatilhos presos ao rodapé (barra de seleção). */
 		placement?: 'below' | 'above';
 		width?: number;
@@ -71,6 +72,7 @@
 		<div
 			class="pop"
 			class:start={align === 'start'}
+			class:center={align === 'center'}
 			class:above={placement === 'above'}
 			{id}
 			role="dialog"
@@ -110,6 +112,11 @@
 		right: auto;
 		left: 0;
 	}
+	.pop.center {
+		right: auto;
+		left: 50%;
+		translate: -50% 0;
+	}
 	.pop.above {
 		top: auto;
 		bottom: calc(100% + 10px);
@@ -141,6 +148,7 @@
 			z-index: 61;
 			width: 100%;
 			max-width: none;
+			translate: none;
 			max-height: 85vh;
 			overflow-y: auto;
 			padding: 20px 18px calc(18px + var(--safe-b));

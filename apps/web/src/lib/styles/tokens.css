@@ -74,6 +74,12 @@
 	--src-mu: #8aa392;
 	--src-mao: #c9b48e;
 	--src-er: #a8613f;
+	/* Calendário de atividade (quanto mais forte, mais coisa feita no dia). */
+	--heat-0: rgba(17, 38, 26, 0.06);
+	--heat-1: #c4e3cc;
+	--heat-2: #84c79a;
+	--heat-3: #3f9d63;
+	--heat-4: #0f6e3c;
 }
 
 .tema-escuro {
@@ -128,6 +134,11 @@
 	--src-mu: #8aa392;
 	--src-mao: #b59f78;
 	--src-er: #d79b7b;
+	--heat-0: rgba(247, 241, 230, 0.06);
+	--heat-1: #1f4a30;
+	--heat-2: #2a6e45;
+	--heat-3: #3f9d63;
+	--heat-4: #7ccf95;
 }
 
 *,

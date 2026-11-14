@@ -897,11 +897,6 @@
 		--grade-2: #b07ad8;
 		--grade-3: #3fae6a;
 		--grade-4: #2f73d0;
-		--heat-0: rgba(17, 38, 26, 0.06);
-		--heat-1: #c4e3cc;
-		--heat-2: #84c79a;
-		--heat-3: #3f9d63;
-		--heat-4: #0f6e3c;
 		--ts-chart-tooltip-background: var(--raise);
 		--ts-chart-tooltip-color: var(--ink);
 		--ts-chart-tooltip-border: 1px solid var(--line-2);
@@ -924,11 +919,6 @@
 		--grade-2: #a97bdc;
 		--grade-3: #46a86c;
 		--grade-4: #3a82dc;
-		--heat-0: rgba(247, 241, 230, 0.06);
-		--heat-1: #1f4a30;
-		--heat-2: #2a6e45;
-		--heat-3: #3f9d63;
-		--heat-4: #7ccf95;
 		--ts-chart-tooltip-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
 	}
 	.tile {

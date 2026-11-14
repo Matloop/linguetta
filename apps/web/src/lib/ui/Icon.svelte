@@ -41,7 +41,8 @@
 		| 'folder'
 		| 'quote'
 		| 'note'
-		| 'trash';
+		| 'trash'
+		| 'lock';
 </script>
 
 <script lang="ts">

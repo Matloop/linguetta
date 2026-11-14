@@ -29,10 +29,19 @@ export type ItemStatus = 'ativo' | 'conhecido';
 
 export type FlashcardKind = 'reconhecer' | 'produzir';
 
-export const WORK_KINDS = ['livro', 'episodio', 'filme', 'musica', 'video'] as const;
+export const WORK_KINDS = ['livro', 'episodio', 'filme', 'musica', 'video', 'curso'] as const;
 export type WorkKind = (typeof WORK_KINDS)[number];
 
-export const ORIGINS = ['manual', 'stremio', 'musica', 'ereader', 'anki', 'blend', 'leitor'] as const;
+export const ORIGINS = [
+	'manual',
+	'stremio',
+	'musica',
+	'ereader',
+	'anki',
+	'blend',
+	'leitor',
+	'curso'
+] as const;
 export type Origin = (typeof ORIGINS)[number];
 
 export const ORIGIN_LABELS: Record<Origin, string> = {
@@ -42,7 +51,8 @@ export const ORIGIN_LABELS: Record<Origin, string> = {
 	ereader: 'E-reader',
 	anki: 'Anki',
 	blend: 'Blend',
-	leitor: 'Leitor'
+	leitor: 'Leitor',
+	curso: 'Curso'
 };
 
 // ---------- Texto ----------

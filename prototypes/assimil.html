@@ -1,0 +1,780 @@
+<!doctype html>
+<html lang="pt-BR" class="tema-claro">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Linguetta · Curso (trilha) · protótipo</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Manrope:wght@500;600;700&display=swap" rel="stylesheet" />
+<style>
+/* ── tokens reais (apps/web/src/lib/styles/tokens.css) ── */
+:root {
+	--f-head: "Manrope", "Inter", system-ui, sans-serif;
+	--f-body: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+	--ease: cubic-bezier(0.22, 0.8, 0.24, 1);
+	--r-s: 6px; --r-m: 8px; --r-l: 12px;
+}
+.tema-claro {
+	color-scheme: light;
+	--page: #f1ebdf; --panel: #fbf8f2; --raise: #ffffff; --tile: #f6f2ea; --sunk: #efe9de;
+	--hover: rgba(17,38,26,.04); --press: rgba(17,38,26,.07);
+	--line: rgba(17,38,26,.08); --line-2: rgba(17,38,26,.14);
+	--ink: #16231b; --ink-2: #464e48; --ink-3: #6e736b;
+	--primary: #1a3626; --primary-hover: #11261a; --on-primary: #f7f1e6;
+	--prog: #1a3626; --prog-track: rgba(17,38,26,.09);
+	--terra-ink: #9a5536; --terra-soft: rgba(168,97,63,.1);
+	--hl: #e3e8dd; --hl-ink: #11261a; --ring: rgba(26,54,38,.28); --scrim: rgba(17,30,22,.18);
+	--soft-bg: var(--raise); --soft-hover: var(--tile);
+	--sh-panel: 0 0 0 1px rgba(17,38,26,.05), 0 1px 2px rgba(17,38,26,.03);
+	--sh-card: 0 0 0 1px rgba(17,38,26,.07), 0 1px 1px rgba(17,38,26,.03);
+	--sh-lift: 0 0 0 1px rgba(17,38,26,.07), 0 4px 14px -8px rgba(17,38,26,.16);
+	--sh-pop: 0 0 0 1px rgba(17,38,26,.08), 0 12px 32px -14px rgba(17,30,22,.24);
+	--ok-ink: #3f6b4c; --ok-soft: rgba(138,163,146,.22);
+	--gold-ink: #8f6428; --gold-soft: rgba(184,138,74,.14);
+	--stage: #e6dfd1;
+}
+.tema-escuro {
+	color-scheme: dark;
+	--page: #1a1715; --panel: #211d1a; --raise: #28231f;
+	--tile: rgba(247,241,230,.035); --sunk: rgba(0,0,0,.16);
+	--hover: rgba(247,241,230,.045); --press: rgba(247,241,230,.075);
+	--line: rgba(247,241,230,.08); --line-2: rgba(247,241,230,.14);
+	--ink: #f3ede1; --ink-2: #d2d6cd; --ink-3: #a5aea6;
+	--primary: #f3ede1; --primary-hover: #ffffff; --on-primary: #1f1a17;
+	--prog: #e9e2d3; --prog-track: rgba(247,241,230,.1);
+	--terra-ink: #d79b7b; --terra-soft: rgba(215,155,123,.12);
+	--hl: rgba(138,163,146,.24); --hl-ink: #f3ede1; --ring: rgba(243,237,225,.35); --scrim: rgba(8,6,4,.55);
+	--soft-bg: rgba(247,241,230,.05); --soft-hover: rgba(247,241,230,.09);
+	--sh-panel: 0 0 0 1px rgba(247,241,230,.05);
+	--sh-card: 0 0 0 1px rgba(247,241,230,.07);
+	--sh-lift: 0 0 0 1px rgba(247,241,230,.08), 0 8px 20px -12px rgba(0,0,0,.6);
+	--sh-pop: 0 0 0 1px rgba(247,241,230,.1), 0 16px 40px -16px rgba(0,0,0,.7);
+	--ok-ink: #a9c9b2; --ok-soft: rgba(138,163,146,.18);
+	--gold-ink: #d9b57c; --gold-soft: rgba(217,181,124,.13);
+	--stage: #121010;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+html, body { margin: 0; }
+body { background: var(--stage); color: var(--ink); font: 400 15px/1.55 var(--f-body); -webkit-font-smoothing: antialiased; transition: background-color .3s; }
+button, input { font: inherit; color: inherit; }
+button { cursor: pointer; background: none; border: 0; padding: 0; }
+.ic { width: 18px; height: 18px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.ic.sm { width: 15px; height: 15px; }
+.ic.lg { width: 26px; height: 26px; }
+.num { font-variant-numeric: tabular-nums; }
+
+/* ── controles do protótipo ── */
+.topbar { position: sticky; top: 0; z-index: 100; display: flex; align-items: center; gap: 14px; padding: 10px 24px; background: color-mix(in srgb, var(--stage) 86%, transparent); backdrop-filter: blur(14px); border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+.topbar .brand { font: 600 14px var(--f-head); white-space: nowrap; color: var(--ink-2); }
+.topbar .sp { flex: 1; }
+.seg { display: flex; gap: 2px; padding: 3px; background: var(--sunk); border-radius: 10px; box-shadow: inset 0 0 0 1px var(--line); }
+.seg button { height: 28px; padding: 0 11px; border-radius: 7px; font-size: 12.5px; font-weight: 500; color: var(--ink-2); white-space: nowrap; }
+.seg button[aria-pressed="true"] { background: var(--raise); color: var(--ink); box-shadow: var(--sh-card); }
+.tema-escuro .seg button[aria-pressed="true"] { background: rgba(247,241,230,.1); box-shadow: none; }
+.wrap { padding: 24px 20px 60px; max-width: 1040px; margin: 0 auto; }
+
+/* ── frame ── */
+.app { position: relative; background: var(--page); border-radius: 16px; box-shadow: 0 0 0 1px var(--line), 0 30px 60px -40px rgba(0,0,0,.35); height: 780px; overflow: hidden; display: flex; flex-direction: column; }
+.app-head { display: flex; align-items: center; gap: 10px; padding: 14px 22px; border-bottom: 1px solid var(--line); flex: none; }
+.wordmark { font: 600 16px/1 var(--f-head); letter-spacing: -.012em; }
+.code { width: 26px; height: 26px; border-radius: var(--r-s); display: grid; place-items: center; font: 600 10.5px/1 var(--f-head); letter-spacing: .04em; color: var(--ink-2); background: var(--tile); box-shadow: inset 0 0 0 1px var(--line-2); }
+.app-head nav { display: flex; gap: 2px; margin-left: 18px; }
+.app-head nav span { font-size: 13.5px; font-weight: 500; color: var(--ink-3); padding: 5px 10px; border-radius: var(--r-m); }
+.app-head nav span.on { color: var(--ink); background: var(--raise); box-shadow: var(--sh-card); }
+.scroll { flex: 1; overflow-y: auto; }
+
+/* ── botões ── */
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 42px; padding: 0 20px; border-radius: 10px; font-weight: 600; font-size: 14.5px; white-space: nowrap; transition: background-color .18s, box-shadow .18s, color .18s, opacity .18s; }
+.btn-primary { background: var(--primary); color: var(--on-primary); }
+.btn-primary:hover { background: var(--primary-hover); }
+.btn-soft { background: var(--soft-bg); box-shadow: var(--sh-card); color: var(--ink); }
+.btn-soft:hover { background: var(--soft-hover); }
+.btn-ghost { color: var(--ink-2); font-weight: 500; } .btn-ghost:hover { background: var(--hover); color: var(--ink); }
+.btn-sm { height: 32px; padding: 0 12px; font-size: 13px; gap: 6px; border-radius: var(--r-m); }
+.btn-ok { background: var(--ok-soft); color: var(--ok-ink); }
+.btn-terra { background: var(--terra-soft); color: var(--terra-ink); }
+.btn[disabled] { opacity: .4; cursor: default; }
+.btn-wide { min-width: 160px; }
+
+/* ── trilha ── */
+.trail { display: grid; grid-template-columns: minmax(0, 1fr) 290px; gap: 32px; padding: 24px 28px 60px; max-width: 920px; margin: 0 auto; }
+@media (max-width: 860px) { .trail { grid-template-columns: 1fr; } .side { order: -1; } }
+.unit { display: flex; align-items: center; gap: 16px; background: var(--primary); color: var(--on-primary); border-radius: 14px; padding: 16px 18px 16px 20px; }
+.unit .t { flex: 1; min-width: 0; }
+.unit small { display: block; font: 600 11.5px var(--f-body); letter-spacing: .06em; text-transform: uppercase; opacity: .65; margin-bottom: 2px; }
+.unit b { font: 600 18px/1.25 var(--f-head); letter-spacing: -.01em; }
+.unit .guide { display: inline-flex; align-items: center; gap: 7px; height: 34px; padding: 0 12px; border-radius: 9px; font-size: 13px; font-weight: 600; color: var(--on-primary); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--on-primary) 25%, transparent); }
+.unit .guide:hover { background: color-mix(in srgb, var(--on-primary) 8%, transparent); }
+.unit.next { background: transparent; color: var(--ink-3); box-shadow: inset 0 0 0 1px var(--line-2); }
+.unit.next .guide { display: none; }
+.past { display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--ink-3); margin-bottom: 14px; }
+.past::before, .past::after { content: ""; flex: 1; height: 1px; background: var(--line-2); }
+.path { position: relative; display: flex; flex-direction: column; align-items: center; gap: 26px; padding: 40px 0 44px; }
+.stop.is-cur { margin: 30px 0 6px; }
+.stop.has-pop { z-index: 30; }
+.stop { position: relative; transform: translateX(var(--x, 0)); }
+.node { position: relative; width: 64px; height: 64px; border-radius: 50%; display: grid; place-items: center; background: var(--raise); color: var(--ink-3); box-shadow: var(--sh-card), 0 4px 0 var(--line-2); transition: transform .12s; }
+.node:active { transform: translateY(3px); box-shadow: var(--sh-card), 0 1px 0 var(--line-2); }
+.node.done { background: var(--hl); color: var(--hl-ink); box-shadow: 0 4px 0 color-mix(in srgb, var(--hl-ink) 18%, transparent); }
+.node.cur { width: 72px; height: 72px; background: var(--primary); color: var(--on-primary); box-shadow: 0 5px 0 color-mix(in srgb, var(--primary) 55%, #000); }
+.node.cur::after { content: ""; position: absolute; inset: -9px; border-radius: 50%; box-shadow: 0 0 0 3px var(--prog-track); }
+.node.locked { background: var(--sunk); color: var(--ink-3); box-shadow: 0 4px 0 var(--line-2); opacity: .8; }
+.node .ic { width: 24px; height: 24px; }
+.tag { position: absolute; left: 50%; bottom: calc(100% + 14px); transform: translateX(-50%); white-space: nowrap; font: 700 12px/1 var(--f-head); letter-spacing: .05em; text-transform: uppercase; padding: 9px 12px; border-radius: 9px; background: var(--raise); color: var(--ink); box-shadow: var(--sh-lift); animation: bob 2.4s ease-in-out infinite; }
+.tag::after { content: ""; position: absolute; left: 50%; top: 100%; width: 10px; height: 10px; background: var(--raise); transform: translate(-50%, -5px) rotate(45deg); box-shadow: 1px 1px 0 var(--line); }
+.tag.soft { color: var(--ink-3); animation: none; }
+@keyframes bob { 50% { transform: translate(-50%, -4px); } }
+.cap { position: absolute; top: 50%; transform: translateY(-50%); white-space: nowrap; font-size: 13px; color: var(--ink-3); }
+.cap b { display: block; font: 600 14px/1.2 var(--f-head); color: var(--ink-2); }
+.cap.r { left: calc(100% + 16px); } .cap.l { right: calc(100% + 16px); text-align: right; }
+.stop.is-cur .cap b { color: var(--ink); }
+.card-pop { position: absolute; z-index: 20; top: calc(100% + 14px); left: 50%; transform: translateX(-50%); width: 260px; background: var(--raise); border-radius: 14px; box-shadow: var(--sh-pop); padding: 16px; text-align: left; animation: pop .16s var(--ease); }
+.card-pop::before { content: ""; position: absolute; left: 50%; bottom: 100%; width: 12px; height: 12px; background: var(--raise); transform: translate(-50%, 6px) rotate(45deg); box-shadow: -1px -1px 0 var(--line); }
+.card-pop small { font-size: 12px; color: var(--ink-3); }
+.card-pop h4 { margin: 2px 0 2px; font: 600 17px var(--f-head); }
+.card-pop p { margin: 0 0 14px; font-size: 13.5px; color: var(--ink-3); }
+.card-pop .btn { width: 100%; }
+@keyframes pop { from { opacity: 0; transform: translate(-50%, 4px); } }
+
+.side { display: flex; flex-direction: column; gap: 14px; position: sticky; top: 24px; align-self: start; }
+.box { background: var(--raise); border-radius: 14px; box-shadow: var(--sh-panel); padding: 16px 18px; }
+.box h3 { margin: 0 0 12px; font: 600 15px var(--f-head); }
+.today { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.today li { display: flex; gap: 12px; align-items: center; }
+.today .dot { width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; flex: none; background: var(--tile); color: var(--ink-2); box-shadow: inset 0 0 0 1px var(--line-2); }
+.today .dot.wave { background: var(--gold-soft); color: var(--gold-ink); box-shadow: none; }
+.today .dot.ok { background: var(--ok-soft); color: var(--ok-ink); box-shadow: none; }
+.today .t { flex: 1; min-width: 0; line-height: 1.3; }
+.today .t b { display: block; font-size: 14px; font-weight: 600; }
+.today .t span { font-size: 12.5px; color: var(--ink-3); }
+.today .go { font-size: 13px; font-weight: 600; color: var(--ink); padding: 6px 10px; border-radius: var(--r-m); background: var(--tile); box-shadow: inset 0 0 0 1px var(--line-2); }
+.today .go:hover { background: var(--hover); }
+.box .meter { display: flex; justify-content: space-between; font-size: 12.5px; color: var(--ink-3); margin-top: 8px; }
+.bar { height: 6px; border-radius: 99px; background: var(--prog-track); overflow: hidden; }
+.bar > i { display: block; height: 100%; background: var(--prog); border-radius: inherit; transition: width .35s var(--ease); }
+.box p { margin: 0; font-size: 13.5px; color: var(--ink-3); }
+.box .link { margin-top: 10px; font-size: 13px; font-weight: 600; color: var(--ink); }
+
+/* ── player ── */
+.player { position: absolute; inset: 0; display: flex; flex-direction: column; background: var(--page); z-index: 5; }
+.ph { display: flex; align-items: center; gap: 16px; padding: 18px 28px; flex: none; max-width: 760px; width: 100%; margin: 0 auto; }
+.ph .x { width: 36px; height: 36px; border-radius: 10px; display: grid; place-items: center; color: var(--ink-3); }
+.ph .x:hover { background: var(--hover); color: var(--ink); }
+.prog { flex: 1; display: flex; gap: 6px; }
+.prog i { flex: 1; height: 8px; border-radius: 99px; background: var(--prog-track); overflow: hidden; }
+.prog i b { display: block; height: 100%; width: 0; background: var(--prog); border-radius: inherit; transition: width .35s var(--ease); }
+.pm { flex: 1; overflow-y: auto; }
+.pm-in { max-width: 600px; margin: 0 auto; padding: 18px 28px 40px; }
+.eyebrow { font: 600 12px var(--f-body); letter-spacing: .06em; text-transform: uppercase; color: var(--ink-3); margin-bottom: 8px; }
+.pm h2 { font: 600 26px/1.2 var(--f-head); letter-spacing: -.02em; margin: 0 0 8px; }
+.lead { margin: 0 0 28px; color: var(--ink-2); font-size: 15px; max-width: 480px; }
+.pf { flex: none; border-top: 1px solid var(--line); background: var(--page); transition: background .2s; }
+.pf-in { max-width: 760px; margin: 0 auto; padding: 18px 28px; display: flex; align-items: center; gap: 14px; min-height: 84px; }
+.pf .sp { flex: 1; }
+.pf .msg { font-size: 13.5px; color: var(--ink-3); }
+.pf.ok { background: var(--ok-soft); border-color: transparent; }
+.pf.bad { background: var(--terra-soft); border-color: transparent; }
+.pf .fb { display: flex; align-items: center; gap: 12px; }
+.pf .fb .mk { width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; background: var(--raise); flex: none; }
+.pf.ok .fb { color: var(--ok-ink); } .pf.bad .fb { color: var(--terra-ink); }
+.pf .fb b { display: block; font: 600 16px var(--f-head); }
+.pf .fb span { font-size: 14px; color: var(--ink-2); }
+.pf.neutral { background: var(--raise); }
+
+/* ouvir */
+.listen { display: flex; flex-direction: column; align-items: center; text-align: center; padding: 26px 0 0; }
+.big-play { width: 112px; height: 112px; border-radius: 50%; display: grid; place-items: center; background: var(--primary); color: var(--on-primary); box-shadow: 0 6px 0 color-mix(in srgb, var(--primary) 55%, #000); transition: transform .12s; }
+.big-play:active { transform: translateY(4px); box-shadow: 0 2px 0 color-mix(in srgb, var(--primary) 55%, #000); }
+.big-play .ic { width: 40px; height: 40px; }
+.listen .meta { margin-top: 22px; font: 600 17px var(--f-head); }
+.listen .meta span { display: block; font: 400 13.5px var(--f-body); color: var(--ink-3); margin-top: 2px; }
+.listen .slow { margin-top: 16px; }
+
+/* ler */
+.lines { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.line { border-radius: 12px; padding: 12px 14px; cursor: pointer; transition: background .15s, box-shadow .15s; }
+.line:hover { background: var(--hover); }
+.line.open { background: var(--raise); box-shadow: var(--sh-card); cursor: default; }
+.line.sep { margin-top: 14px; }
+.line .it { display: flex; gap: 12px; font: 500 17px/1.5 var(--f-body); }
+.line .no { flex: none; width: 18px; font: 600 12.5px/1.95 var(--f-head); color: var(--ink-3); text-align: right; }
+.line .w { border-radius: 4px; padding: 0 1px; margin: 0 -1px; }
+.line.open .w { cursor: pointer; text-decoration: underline; text-decoration-color: var(--line-2); text-underline-offset: 5px; }
+.line.open .w:hover { background: var(--hl); }
+.line .w.saved { background: var(--hl); color: var(--hl-ink); text-decoration: none; }
+.line .has-note { width: 6px; height: 6px; border-radius: 50%; background: var(--terra-ink); align-self: center; margin-left: 2px; opacity: .7; }
+.line .more { display: none; margin: 8px 0 0 30px; }
+.line.open .more { display: block; }
+.line .pt { font-size: 15px; color: var(--ink-2); }
+.line .lit { font-size: 13px; color: var(--ink-3); margin-top: 1px; }
+.line .note { margin-top: 12px; padding: 10px 12px; border-radius: 10px; background: var(--tile); box-shadow: inset 0 0 0 1px var(--line); font-size: 13.5px; color: var(--ink-2); display: flex; gap: 10px; align-items: flex-start; }
+.line .note .t { flex: 1; }
+.line .note .t small { display: block; font: 600 11px var(--f-body); letter-spacing: .06em; text-transform: uppercase; color: var(--terra-ink); margin-bottom: 2px; }
+.line .note i { color: var(--ink); }
+
+/* repetir / exercícios / onda */
+.stage { background: var(--raise); border-radius: 16px; box-shadow: var(--sh-lift); padding: 30px 28px; text-align: center; }
+.stage .pos { font-size: 12.5px; font-weight: 600; color: var(--ink-3); margin-bottom: 16px; }
+.stage .say-it { font: 500 23px/1.4 var(--f-body); letter-spacing: -.005em; }
+.stage .say-pt { font-size: 15px; color: var(--ink-3); margin-top: 8px; }
+.stage .say-big-pt { font: 600 23px/1.35 var(--f-head); letter-spacing: -.01em; }
+.stage .ans { margin-top: 22px; padding-top: 22px; border-top: 1px dashed var(--line-2); }
+.stage .ans .say-it { font-size: 20px; }
+.stage .lit { font-size: 13px; color: var(--ink-3); margin-top: 4px; }
+.stage .tools { margin-top: 20px; display: flex; justify-content: center; gap: 8px; }
+.round-play { width: 48px; height: 48px; border-radius: 50%; display: inline-grid; place-items: center; background: var(--tile); color: var(--ink); box-shadow: inset 0 0 0 1px var(--line-2); }
+.round-play:hover { background: var(--hover); }
+.cloze-pt { font-size: 15px; color: var(--ink-3); margin-bottom: 14px; }
+.cloze-it { font: 500 21px/2.1 var(--f-body); }
+.cloze-it input { width: 7em; height: 40px; padding: 0 10px; margin: 0 2px; border-radius: 10px; border: 0; background: var(--sunk); box-shadow: inset 0 0 0 1.5px var(--line-2); font: 500 19px var(--f-body); text-align: center; }
+.cloze-it input:focus { outline: none; box-shadow: inset 0 0 0 2px var(--prog); background: var(--raise); }
+.cloze-it input.right { background: var(--ok-soft); color: var(--ok-ink); box-shadow: none; }
+.cloze-it input.wrong { background: var(--terra-soft); color: var(--terra-ink); box-shadow: none; }
+.subdots { display: flex; justify-content: center; gap: 6px; margin-top: 18px; }
+.subdots i { width: 6px; height: 6px; border-radius: 50%; background: var(--line-2); }
+.subdots i.on { background: var(--prog); }
+.subdots i.ok { background: var(--ok-ink); }
+.subdots i.no { background: var(--terra-ink); }
+
+/* revisão */
+.rnote h3 { font: 600 20px/1.3 var(--f-head); margin: 0 0 4px; text-align: left; }
+.rnote small { display: block; text-align: left; font-size: 12.5px; color: var(--ink-3); margin-bottom: 14px; }
+.rnote p { text-align: left; margin: 0 0 18px; color: var(--ink-2); }
+.rnote p i { color: var(--ink); }
+.rnote .exm { text-align: left; padding: 12px 14px; border-radius: 10px; background: var(--tile); box-shadow: inset 0 0 0 1px var(--line); }
+.rnote .exm b { display: block; font-weight: 500; font-size: 16px; }
+.rnote .exm span { font-size: 13.5px; color: var(--ink-3); }
+
+/* fim */
+.end { display: flex; flex-direction: column; align-items: center; text-align: center; padding-top: 60px; }
+.end .mk { width: 72px; height: 72px; border-radius: 50%; display: grid; place-items: center; background: var(--ok-soft); color: var(--ok-ink); margin-bottom: 22px; }
+.end .mk .ic { width: 32px; height: 32px; }
+.end h2 { margin-bottom: 8px; }
+.end .lead { margin: 0 auto 20px; }
+.end .facts { display: flex; gap: 24px; font-size: 13.5px; color: var(--ink-3); }
+.end .facts b { display: block; font: 600 20px var(--f-head); color: var(--ink); }
+
+/* popover da palavra */
+.wpop { position: absolute; z-index: 30; width: 250px; background: var(--raise); border-radius: 12px; box-shadow: var(--sh-pop); padding: 14px; animation: in .16s var(--ease); }
+@keyframes in { from { opacity: 0; transform: translateY(4px); } }
+.wpop .lema { font: 600 17px var(--f-head); }
+.wpop .forma { font-size: 12px; color: var(--ink-3); }
+.wpop .sentido { margin: 6px 0 12px; font-size: 14px; color: var(--ink-2); }
+.wpop .row { display: flex; gap: 6px; }
+
+.toast { position: fixed; left: 50%; bottom: 26px; transform: translateX(-50%) translateY(20px); background: var(--primary); color: var(--on-primary); padding: 9px 16px; border-radius: 99px; font-size: 13.5px; font-weight: 500; box-shadow: var(--sh-pop); opacity: 0; pointer-events: none; transition: opacity .2s, transform .2s var(--ease); z-index: 200; }
+.toast.on { opacity: 1; transform: translateX(-50%) translateY(0); }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+	<div class="brand">Protótipo · curso em trilha</div>
+	<div class="sp"></div>
+	<div class="seg" id="days">
+		<button data-day="3" aria-pressed="true">Dia 3</button>
+		<button data-day="7">Dia 7 · revisão</button>
+		<button data-day="55">Dia 55 · 2ª onda</button>
+	</div>
+	<div class="seg" id="theme">
+		<button data-t="claro" aria-pressed="true">Claro</button>
+		<button data-t="escuro">Escuro</button>
+	</div>
+</div>
+
+<div class="wrap"><div class="app" id="app"></div></div>
+<div class="toast" id="toast"></div>
+
+<script>
+const I = {
+	play: '<svg class="ic" viewBox="0 0 24 24"><path d="M8 5.5v13l10.5-6.5z" fill="currentColor" stroke="none"/></svg>',
+	x: '<svg class="ic" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>',
+	check: '<svg class="ic" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>',
+	plus: '<svg class="ic sm" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>',
+	lesson: '<svg class="ic" viewBox="0 0 24 24"><path d="M5 6.5A2.5 2.5 0 017.5 4H19v14H7.5A2.5 2.5 0 005 20.5z"/><path d="M5 20.5A2.5 2.5 0 017.5 18H19v2.5H7.5"/></svg>',
+	review: '<svg class="ic" viewBox="0 0 24 24"><path d="M4 12a8 8 0 0113.7-5.6L20 8.5M20 4v4.5h-4.5M20 12a8 8 0 01-13.7 5.6L4 15.5M4 20v-4.5h4.5"/></svg>',
+	wave: '<svg class="ic sm" viewBox="0 0 24 24"><path d="M4 12a8 8 0 0113.7-5.6L20 8.5M20 4v4.5h-4.5"/></svg>',
+	notes: '<svg class="ic sm" viewBox="0 0 24 24"><path d="M7 4h10a2 2 0 012 2v14l-3-2-3 2-3-2-3 2V6a2 2 0 012-2zM9 9h6M9 13h4"/></svg>',
+	cards: '<svg class="ic sm" viewBox="0 0 24 24"><rect x="4" y="7" width="13" height="13" rx="2"/><path d="M8 4h10a2 2 0 012 2v10"/></svg>',
+	lock: '<svg class="ic" viewBox="0 0 24 24"><rect x="5.5" y="10.5" width="13" height="9.5" rx="2"/><path d="M8.5 10.5V8a3.5 3.5 0 017 0v2.5"/></svg>',
+};
+
+// ── conteúdo original ──
+const UNITS = {
+	1: { title: 'Primeiros dias', from: 1, titles: ['Piacere', 'Al bar', 'Al mercato', 'In albergo', 'Al telefono', 'In treno', 'Revisão'] },
+	8: { title: 'Casa nova', from: 50, titles: ['Il colloquio', 'Dal medico', 'La festa', 'Un viaggio', 'Il vicino', 'Il trasloco', 'Revisão'] },
+	2: { title: 'Pela cidade' }, 9: { title: 'Em viagem' },
+};
+
+const LESSONS = {
+	3: {
+		title: 'Al mercato', titlePt: 'No mercado',
+		lines: [
+			{ it: 'Buongiorno! Quanto costano le pesche?', pt: 'Bom dia! Quanto custam os pêssegos?', lit: 'Quanto custam as pêssegas?' },
+			{ it: 'Tre euro al chilo, signora.', pt: 'Três euros o quilo, senhora.', lit: '… ao quilo …' },
+			{ it: 'Ne prendo un chilo, per favore.', pt: 'Vou levar um quilo, por favor.', lit: 'Delas pego um quilo …', note: '<i>Ne</i> retoma algo já dito, como "disso" ou "deles". Em português, simplesmente omitimos.' },
+			{ it: 'Ecco a Lei. Altro?', pt: 'Aqui está. Mais alguma coisa?', lit: 'Eis à senhora. Outro?', note: '<i>Lei</i> é o tratamento formal, como "o senhor / a senhora". O verbo vai na 3ª pessoa.' },
+			{ it: 'Sì, vorrei anche del pane.', pt: 'Sim, queria também pão.', lit: '… também do pão.' },
+			{ it: 'Il pane è finito, mi dispiace.', pt: 'O pão acabou, sinto muito.', lit: 'O pão é acabado, me desagrada.', note: 'Alguns verbos formam o passado com <i>essere</i> e não com <i>avere</i>: <i>è finito</i>, "acabou".' },
+			{ it: 'Pazienza! Torno domani.', pt: 'Paciência! Volto amanhã.' },
+			{ it: 'Giulia compra le pesche e torna a casa.', pt: 'Giulia compra os pêssegos e volta para casa.', sep: true },
+			{ it: 'La nonna Rita ama le pesche.', pt: 'A avó Rita adora pêssegos.', lit: 'A avó Rita ama os pêssegos.' },
+		],
+		ex1: [
+			{ q: 'Quanto costa il pane?', a: 'Quanto custa o pão?' },
+			{ q: 'Ne prendo due, per favore.', a: 'Vou levar dois, por favor.' },
+			{ q: 'La signora torna domani.', a: 'A senhora volta amanhã.' },
+			{ q: 'Mi dispiace, è finito.', a: 'Sinto muito, acabou.' },
+		],
+		ex2: [
+			{ pt: 'Quanto custam os pêssegos?', it: ['Quanto ', null, ' le pesche?'], ans: ['costano'] },
+			{ pt: 'Vou levar um quilo.', it: ['', null, ' prendo un chilo.'], ans: ['ne'] },
+			{ pt: 'O pão acabou, sinto muito.', it: ['Il pane è ', null, ', mi ', null, '.'], ans: ['finito', 'dispiace'] },
+		],
+	},
+	6: {
+		title: 'In treno', titlePt: 'No trem',
+		lines: [
+			{ it: 'Scusi, questo posto è libero?', pt: 'Desculpe, este lugar está livre?', lit: '… este lugar é livre?' },
+			{ it: 'No, è occupato. C\'è un signore al bar.', pt: 'Não, está ocupado. Tem um senhor no bar.', lit: '… Há um senhor ao bar.' },
+			{ it: 'Allora mi siedo qui, vicino al finestrino.', pt: 'Então eu me sento aqui, perto da janela.', lit: '… vizinho à janelinha.' },
+			{ it: 'A che ora arriviamo a Bologna?', pt: 'A que horas chegamos a Bolonha?' },
+			{ it: 'Alle undici, se non c\'è ritardo.', pt: 'Às onze, se não houver atraso.', lit: '… se não há atraso.' },
+			{ it: 'Speriamo bene!', pt: 'Tomara!', lit: 'Esperemos bem!' },
+		],
+		ex1: [
+			{ q: 'Questo posto è occupato.', a: 'Este lugar está ocupado.' },
+			{ q: 'A che ora arriva il treno?', a: 'A que horas chega o trem?' },
+		],
+		ex2: [
+			{ pt: 'Este lugar está livre?', it: ['Questo posto è ', null, '?'], ans: ['libero'] },
+			{ pt: 'Tem um senhor no bar.', it: ['', null, ' un signore al bar.'], ans: ["c'è"] },
+		],
+	},
+	55: {
+		title: 'Il trasloco', titlePt: 'A mudança',
+		lines: [
+			{ it: 'Tommaso, mi daresti una mano con gli scatoloni?', pt: 'Tommaso, você me daria uma mão com as caixas?', lit: '… me darias uma mão com os caixotes?' },
+			{ it: 'Volentieri, ma prima finisco di mangiare.', pt: 'Com prazer, mas primeiro termino de comer.' },
+			{ it: 'Se aspetti ancora, il camion se ne va senza di noi!', pt: 'Se você esperar mais, o caminhão vai embora sem nós!', lit: '… o caminhão se disso vai sem de nós!', note: '<i>Andarsene</i> é "ir embora": <i>me ne vado</i>, <i>te ne vai</i>, <i>se ne va</i>.' },
+			{ it: 'Va bene, va bene… Dove li metto?', pt: 'Está bem, está bem… Onde eu as coloco?', lit: 'Vai bem … Onde os ponho?', note: '<i>Li</i> é o pronome "os" (masculino plural). No feminino é <i>le</i>.' },
+			{ it: 'Quelli pesanti in cucina, gli altri dove ti pare.', pt: 'As pesadas na cozinha, as outras onde você quiser.', lit: 'Aqueles pesados … onde te parece.' },
+			{ it: 'E questo cos\'è? Pesa una tonnellata!', pt: 'E isto, o que é? Pesa uma tonelada!' },
+			{ it: 'Sono i libri della nonna. Guai a chi li tocca!', pt: 'São os livros da avó. Ai de quem mexer neles!', lit: '… Ais a quem os toca!', note: '<i>Guai a…</i> = "ai de…", ameaça meio brincalhona.' },
+			{ it: 'Alla fine Tommaso porta tutto, anche i libri.', pt: 'No fim, Tommaso leva tudo, até os livros.', sep: true },
+		],
+		ex1: [
+			{ q: 'Mi daresti una mano?', a: 'Você me daria uma mão?' },
+			{ q: 'Il treno se ne va.', a: 'O trem vai embora.' },
+			{ q: 'Dove li metto?', a: 'Onde eu os coloco?' },
+			{ q: 'Mettili dove ti pare.', a: 'Coloque-os onde você quiser.' },
+		],
+		ex2: [
+			{ pt: 'Com prazer, mas primeiro termino de comer.', it: ['', null, ', ma prima finisco di mangiare.'], ans: ['volentieri'] },
+			{ pt: 'O caminhão vai embora sem nós.', it: ['Il camion ', null, ' ', null, ' va senza di noi.'], ans: ['se', 'ne'] },
+			{ pt: 'Ai de quem mexer neles!', it: ['', null, ' a chi ', null, ' tocca!'], ans: ['guai', 'li'] },
+		],
+	},
+};
+
+const REVIEW = {
+	7: {
+		notes: [
+			{ h: 'O tratamento com Lei', from: 'Lições 1 e 3', p: 'Para ser formal, use <i>Lei</i> e o verbo na 3ª pessoa, como "o senhor".', it: 'Scusi, Lei è di Bologna?', pt: 'Desculpe, o senhor é de Bolonha?' },
+			{ h: 'Ne: "disso, deles"', from: 'Lição 3', p: 'Retoma algo já dito e vem antes do verbo. Em português, a gente omite.', it: 'Pesche? Ne prendo due.', pt: 'Pêssegos? Levo dois.' },
+			{ h: 'C\'è e ci sono', from: 'Lições 4 e 6', p: '"Há / tem": <i>c\'è</i> para uma coisa, <i>ci sono</i> para várias.', it: 'Ci sono due posti liberi.', pt: 'Tem dois lugares livres.' },
+			{ h: 'Passado com essere', from: 'Lição 3', p: 'Verbos de movimento e de mudança usam <i>essere</i>: <i>è finito</i>, <i>sono arrivata</i>.', it: 'Giulia è tornata a casa.', pt: 'Giulia voltou para casa.' },
+		],
+		phrases: [
+			{ q: 'Ecco a Lei.', a: 'Aqui está.' },
+			{ q: 'Mi dispiace.', a: 'Sinto muito.' },
+			{ q: 'Speriamo bene!', a: 'Tomara!' },
+			{ q: 'Pazienza!', a: 'Paciência!' },
+		],
+	},
+};
+
+const GLOSS = {
+	buongiorno: 'bom dia', quanto: 'quanto', costano: 'custam (costare)', pesche: 'pêssegos (pesca)', tre: 'três', euro: 'euro', chilo: 'quilo', signora: 'senhora',
+	ne: 'disso, deles', prendo: 'pego, levo (prendere)', favore: 'favor', ecco: 'eis, aqui está', altro: 'outro, mais', vorrei: 'queria (volere)', anche: 'também', pane: 'pão',
+	finito: 'acabado (finire)', dispiace: 'mi dispiace = sinto muito', pazienza: 'paciência', torno: 'volto (tornare)', torna: 'volta (tornare)', domani: 'amanhã', compra: 'compra (comprare)',
+	casa: 'casa', nonna: 'avó', ama: 'ama, adora (amare)', daresti: 'darias (dare)', mano: 'mão', scatoloni: 'caixas grandes (scatolone)', volentieri: 'com prazer', prima: 'antes, primeiro',
+	finisco: 'termino (finire)', mangiare: 'comer', aspetti: 'esperas (aspettare)', ancora: 'ainda, mais', camion: 'caminhão', va: 'vai (andare)', senza: 'sem', dove: 'onde', li: 'os (pronome)',
+	metto: 'ponho, coloco (mettere)', pesanti: 'pesados (pesante)', cucina: 'cozinha', altri: 'outros', pare: 'parece (parere)', pesa: 'pesa (pesare)', tonnellata: 'tonelada', libri: 'livros (libro)',
+	guai: 'ai de', tocca: 'toca, mexe (toccare)', fine: 'fim', porta: 'leva (portare)', tutto: 'tudo',
+};
+
+const STEPS = ['Ouvir', 'Ler', 'Repetir', 'Traduzir', 'Completar'];
+
+// ── estado ──
+const S = { day: 3, screen: 'trail', pop: null, saved: new Set(), fichas: new Set(), done: new Set(), P: null };
+const $app = document.getElementById('app');
+
+const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
+const norm = w => w.toLowerCase().normalize('NFC').replace(/^[^\p{L}']+|[^\p{L}']+$/gu, '');
+function toast(m) { const t = document.getElementById('toast'); t.textContent = m; t.classList.add('on'); clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove('on'), 1900); }
+
+function unitOf(day) { return day >= 50 ? 8 : 1; }
+function currentNo() { return S.day; }
+function nodeState(no) {
+	const cur = currentNo();
+	if (no < cur) return 'done';
+	if (no === cur) return S.done.has(no) ? 'done' : 'cur';
+	return 'locked';
+}
+function waveNo() { return S.day >= 50 ? S.day - 49 : null; }
+
+// ── trilha ──
+const OFF = [0, 52, 78, 52, 0, -52, -78];
+
+function renderTrail() {
+	const u = unitOf(S.day), U = UNITS[u], cur = currentNo();
+	const curDone = S.done.has(cur);
+	const w = waveNo(), waveDone = w && S.done.has('w' + w);
+	const stops = U.titles.map((title, i) => {
+		const no = U.from + i, st = curDone && no === cur ? 'done' : nodeState(no);
+		const isRev = i === 6, x = OFF[i];
+		const tomorrow = curDone && no === cur + 1;
+		const capSide = x > 0 ? 'l' : 'r';
+		return `<div class="stop ${st === 'cur' ? 'is-cur' : ''} ${S.pop === no ? 'has-pop' : ''}" style="--x:${x}px">
+			${st === 'cur' ? `<span class="tag">Começar</span>` : tomorrow ? `<span class="tag soft">Amanhã</span>` : ''}
+			<button class="node ${st}" data-act="node" data-no="${no}" aria-label="Lição ${no}">${st === 'done' ? I.check : st === 'locked' ? (isRev ? I.review : I.lock) : isRev ? I.review : I.lesson}</button>
+			<span class="cap ${capSide}"><b>${title}</b>Lição ${no}</span>
+			${S.pop === no ? popCard(no, st, title, isRev) : ''}
+		</div>`;
+	}).join('');
+
+	const todayItems = [];
+	todayItems.push(curDone
+		? `<li><span class="dot ok">${I.check}</span><span class="t"><b>Lição ${cur}</b><span>Feita</span></span></li>`
+		: `<li><span class="dot">${cur % 7 === 0 ? I.review : I.lesson}</span><span class="t"><b>Lição ${cur}${cur % 7 === 0 ? ' · revisão' : ''}</b><span>${cur % 7 === 0 ? 'Notas da semana' : '~15 min'}</span></span><button class="go" data-act="start" data-no="${cur}">Começar</button></li>`);
+	if (w) todayItems.push(waveDone
+		? `<li><span class="dot ok">${I.check}</span><span class="t"><b>Refazer a lição ${w}</b><span>Feita</span></span></li>`
+		: `<li><span class="dot wave">${I.wave}</span><span class="t"><b>Refazer a lição ${w}</b><span>Segunda onda · ~5 min</span></span><button class="go" data-act="wave">Começar</button></li>`);
+
+	const nextU = u === 1 ? 2 : 9;
+	$app.innerHTML = `
+		<div class="app-head">
+			<span class="wordmark">Linguetta</span><span class="code">IT</span>
+			<nav><span class="on">Curso</span><span>Palavras</span><span>Revisar</span><span>Livros</span></nav>
+		</div>
+		<div class="scroll" data-act="bg">
+			<div class="trail">
+				<div>
+					${u === 8 ? `<div class="past">Unidades 1 a 7 concluídas</div>` : ''}
+					<div class="unit"><div class="t"><small>Unidade ${u} · lições ${U.from}–${U.from + 6}</small><b>${U.title}</b></div><button class="guide" data-act="guide">${I.notes}Notas</button></div>
+					<div class="path">${stops}</div>
+					<div class="unit next"><div class="t"><small>Unidade ${nextU}</small><b>${UNITS[nextU].title}</b></div></div>
+				</div>
+				<aside class="side">
+					<div class="box"><h3>Hoje</h3><ul class="today">${todayItems.join('')}</ul></div>
+					<div class="box">
+						<h3>O italiano, dia a dia</h3>
+						<div class="bar"><i style="width:${cur}%"></i></div>
+						<div class="meter num"><span>Lição ${cur} de 100</span><span>${S.day >= 50 ? 'Fase ativa' : 'Fase passiva'}</span></div>
+					</div>
+					<div class="box">
+						<h3>Flashcards</h3>
+						<p>${12 + S.saved.size} para revisar. As palavras guardadas nas lições entram aqui, no FSRS.</p>
+						<div class="link">Revisar →</div>
+					</div>
+				</aside>
+			</div>
+		</div>`;
+	const c = $app.querySelector('.is-cur');
+	if (c && !S._scrolled) { S._scrolled = true; c.scrollIntoView({ block: 'center' }); }
+}
+
+function popCard(no, st, title, isRev) {
+	const has = LESSONS[no] || REVIEW[no];
+	let meta, btn;
+	if (st === 'locked') { meta = 'Uma lição por dia. Esta abre depois das anteriores.'; btn = `<button class="btn btn-soft" disabled>Bloqueada</button>`; }
+	else if (st === 'cur') { meta = isRev ? 'Revisão das notas da semana.' : `${LESSONS[no].lines.length} falas · ouvir, ler, repetir e 2 exercícios.`; btn = `<button class="btn btn-primary" data-act="start" data-no="${no}">Começar</button>`; }
+	else { meta = 'Feita. Pode rever quando quiser.'; btn = has ? `<button class="btn btn-soft" data-act="start" data-no="${no}">Rever</button>` : `<button class="btn btn-soft" data-act="nodemo">Rever</button>`; }
+	return `<div class="card-pop" data-act="stay"><small>Lição ${no}</small><h4>${title}</h4><p>${meta}</p>${btn}</div>`;
+}
+
+// ── player ──
+function startLesson(no) {
+	S.pop = null;
+	if (REVIEW[no]) S.P = { kind: 'review', no, step: 0, sub: 0, shown: false };
+	else S.P = { kind: 'lesson', no, step: 0, sub: 0, open: new Set(), shown: false, fb: null };
+	S.screen = 'player'; render();
+}
+function startWave() {
+	const no = waveNo();
+	S.P = { kind: 'wave', no, sub: 0, shown: false, res: [] };
+	S.screen = 'player'; render();
+}
+
+function stepsOf(P) { return P.kind === 'review' ? ['Notas', 'Expressões'] : P.kind === 'wave' ? ['Segunda onda'] : STEPS; }
+function subCount(P) {
+	if (P.kind === 'wave') return LESSONS[P.no].lines.length;
+	if (P.kind === 'review') return P.step === 0 ? REVIEW[P.no].notes.length : REVIEW[P.no].phrases.length;
+	const L = LESSONS[P.no];
+	return [1, 1, L.lines.length, L.ex1.length, L.ex2.length][P.step];
+}
+
+function progHTML(P) {
+	const steps = stepsOf(P), step = P.kind === 'wave' ? 0 : P.step;
+	return steps.map((_, i) => {
+		const w = P.end || i < step ? 100 : i > step ? 0 : (P.sub / subCount(P)) * 100;
+		return `<i title="${steps[i]}"><b style="width:${w}%"></b></i>`;
+	}).join('');
+}
+
+function shell(P, body, foot, footCls = '') {
+	$app.innerHTML = `
+		<div class="player">
+			<div class="ph"><button class="x" data-act="close" title="Sair">${I.x}</button><div class="prog">${progHTML(P)}</div></div>
+			<div class="pm"><div class="pm-in">${body}</div></div>
+			<div class="pf ${footCls}"><div class="pf-in">${foot}</div></div>
+		</div>`;
+	const inp = $app.querySelector('.cloze-it input:not([readonly])');
+	if (inp) inp.focus();
+}
+
+function eyebrow(P) {
+	if (P.kind === 'wave') return `Segunda onda · lição ${P.no}`;
+	if (P.kind === 'review') return `Lição ${P.no} · revisão · ${['Notas da semana', 'Expressões'][P.step]}`;
+	return `Passo ${P.step + 1} de 5 · ${STEPS[P.step]}`;
+}
+
+function subdots(n, cur, res) { return `<div class="subdots">${Array.from({ length: n }, (_, i) => `<i class="${res && res[i] === true ? 'ok' : res && res[i] === false ? 'no' : i === cur ? 'on' : i < cur ? 'ok' : ''}"></i>`).join('')}</div>`; }
+
+function wordsHTML(text) {
+	return text.split(/(\s+)/).map(tok => {
+		if (/^\s+$/.test(tok)) return tok;
+		const n = norm(tok);
+		if (!n) return esc(tok);
+		return `<span class="w ${S.saved.has(n) ? 'saved' : ''}" data-act="word" data-w="${esc(n)}">${esc(tok)}</span>`;
+	}).join('');
+}
+
+function renderPlayer() {
+	const P = S.P;
+	if (P.end) return renderEnd(P);
+	if (P.kind === 'wave') return renderWave(P);
+	if (P.kind === 'review') return renderReview(P);
+	const L = LESSONS[P.no];
+	const head = `<div class="eyebrow">${eyebrow(P)}</div>`;
+	const savedMsg = `<span class="msg">${S.saved.size ? `${S.saved.size} palavra${S.saved.size > 1 ? 's' : ''} guardada${S.saved.size > 1 ? 's' : ''}` : ''}</span>`;
+
+	if (P.step === 0) {
+		return shell(P, `${head}<h2>Ouça a lição inteira</h2><p class="lead">Não tente entender tudo. Só pegue o ritmo e a melodia das frases.</p>
+			<div class="listen">
+				<button class="big-play" data-act="audio">${I.play}</button>
+				<div class="meta">${L.title}<span>Lição ${P.no} · ${L.lines.length} falas</span></div>
+				<button class="btn btn-ghost btn-sm slow" data-act="audio">Ouvir mais devagar</button>
+			</div>`,
+			`<span class="sp"></span><button class="btn btn-primary btn-wide" data-act="next">Já ouvi</button>`);
+	}
+	if (P.step === 1) {
+		const lines = L.lines.map((l, i) => {
+			const open = P.open.has(i);
+			return `<li class="line ${open ? 'open' : ''} ${l.sep ? 'sep' : ''}" data-act="line" data-i="${i}">
+				<div class="it"><span class="no num">${i + 1}</span><span>${wordsHTML(l.it)}</span>${l.note && !open ? '<span class="has-note" title="Tem nota"></span>' : ''}</div>
+				<div class="more">
+					<div class="pt">${esc(l.pt)}</div>${l.lit ? `<div class="lit">Literal: ${esc(l.lit)}</div>` : ''}
+					${l.note ? `<div class="note"><div class="t"><small>Nota</small>${l.note}</div><button class="btn btn-ghost btn-sm" data-act="ficha" data-k="${P.no}-${i}">${S.fichas.has(`${P.no}-${i}`) ? I.check + 'Ficha' : I.plus + 'Ficha'}</button></div>` : ''}
+				</div>
+			</li>`;
+		}).join('');
+		return shell(P, `${head}<h2>Leia com a tradução</h2><p class="lead">Toque numa fala para ver o português. Com a fala aberta, toque numa palavra para guardá-la.</p><ol class="lines">${lines}</ol>`,
+			`${savedMsg}<span class="sp"></span><button class="btn btn-primary btn-wide" data-act="next">Continuar</button>`);
+	}
+	if (P.step === 2) {
+		const l = L.lines[P.sub];
+		return shell(P, `${head}<h2>Repita em voz alta</h2><p class="lead">Ouça cada fala e repita imitando a entonação. Não precisa decorar.</p>
+			<div class="stage">
+				<div class="pos num">Fala ${P.sub + 1} de ${L.lines.length}</div>
+				<div class="say-it">${esc(l.it)}</div>
+				<div class="say-pt">${esc(l.pt)}</div>
+				<div class="tools"><button class="round-play" data-act="audio" title="Ouvir">${I.play}</button></div>
+			</div>`,
+			`<button class="btn btn-ghost" data-act="prevsub" ${P.sub ? '' : 'disabled'}>Anterior</button><span class="sp"></span><button class="btn btn-primary btn-wide" data-act="next">Repeti</button>`);
+	}
+	if (P.step === 3) {
+		const e = L.ex1[P.sub];
+		return shell(P, `${head}<h2>Como se diz em português?</h2><p class="lead">Leia em voz alta e pense na tradução antes de conferir.</p>
+			<div class="stage"><div class="pos num">Frase ${P.sub + 1} de ${L.ex1.length}</div><div class="say-it">${esc(e.q)}</div>
+			<div class="tools"><button class="round-play" data-act="audio" title="Ouvir">${I.play}</button></div></div>`,
+			P.shown
+				? `<div class="fb"><span class="mk">${I.check}</span><div><b>Tradução</b><span>${esc(e.a)}</span></div></div><span class="sp"></span><button class="btn btn-primary btn-wide" data-act="next">Continuar</button>`
+				: `<span class="sp"></span><button class="btn btn-primary btn-wide" data-act="show">Mostrar tradução</button>`,
+			P.shown ? 'neutral' : '');
+	}
+	if (P.step === 4) {
+		const e = L.ex2[P.sub];
+		let k = 0;
+		const it = e.it.map(p => {
+			if (p !== null) return esc(p);
+			const idx = k++, val = P.vals?.[idx] ?? '';
+			const cls = P.fb ? (norm(val) === e.ans[idx] ? 'right' : 'wrong') : '';
+			return `<input data-k="${idx}" value="${esc(val)}" class="${cls}" ${P.fb ? 'readonly' : ''} autocomplete="off" spellcheck="false" aria-label="Lacuna ${idx + 1}">`;
+		}).join('');
+		const foot = P.fb === 'ok'
+			? `<div class="fb"><span class="mk">${I.check}</span><div><b>Isso!</b><span>${esc(fill(e))}</span></div></div><span class="sp"></span><button class="btn btn-primary btn-wide" data-act="next">Continuar</button>`
+			: P.fb === 'bad'
+				? `<div class="fb"><span class="mk">${I.x}</span><div><b>Resposta certa</b><span>${esc(fill(e))}</span></div></div><span class="sp"></span><button class="btn btn-primary btn-wide" data-act="next">Continuar</button>`
+				: `<button class="btn btn-ghost" data-act="skip">Não sei</button><span class="sp"></span><button class="btn btn-primary btn-wide" data-act="check">Verificar</button>`;
+		return shell(P, `${head}<h2>Complete a frase</h2><p class="lead">Escreva as palavras que faltam.</p>
+			<div class="stage"><div class="pos num">Frase ${P.sub + 1} de ${L.ex2.length}</div><div class="cloze-pt">${esc(e.pt)}</div><div class="cloze-it">${it}</div></div>`,
+			foot, P.fb || '');
+	}
+}
+function fill(e) { let k = 0; return e.it.map(p => p === null ? e.ans[k++] : p).join(''); }
+
+function renderReview(P) {
+	const R = REVIEW[P.no];
+	if (P.step === 0) {
+		const n = R.notes[P.sub];
+		return shell(P, `<div class="eyebrow">${eyebrow(P)}</div><h2>Reveja o que a semana mostrou</h2><p class="lead">Sem lição nova hoje. As notas que apareceram aos poucos agora se juntam.</p>
+			<div class="stage rnote"><h3>${n.h}</h3><small>${n.from}</small><p>${n.p}</p><div class="exm"><b>${esc(n.it)}</b><span>${esc(n.pt)}</span></div>${subdots(R.notes.length, P.sub)}</div>`,
+			`<button class="btn btn-ghost" data-act="prevsub" ${P.sub ? '' : 'disabled'}>Anterior</button><span class="sp"></span><button class="btn btn-primary btn-wide" data-act="next">Continuar</button>`);
+	}
+	const e = R.phrases[P.sub];
+	return shell(P, `<div class="eyebrow">${eyebrow(P)}</div><h2>O que significa?</h2><p class="lead">Expressões da semana. Pense antes de conferir.</p>
+		<div class="stage"><div class="pos num">${P.sub + 1} de ${R.phrases.length}</div><div class="say-it">${esc(e.q)}</div></div>`,
+		P.shown
+			? `<div class="fb"><span class="mk">${I.check}</span><div><b>Significa</b><span>${esc(e.a)}</span></div></div><span class="sp"></span><button class="btn btn-primary btn-wide" data-act="next">Continuar</button>`
+			: `<span class="sp"></span><button class="btn btn-primary btn-wide" data-act="show">Mostrar</button>`,
+		P.shown ? 'neutral' : '');
+}
+
+function renderWave(P) {
+	const L = LESSONS[P.no], l = L.lines[P.sub];
+	return shell(P, `<div class="eyebrow">${eyebrow(P)}</div><h2>Diga em italiano</h2><p class="lead">Leia o português e fale em voz alta antes de conferir. Só você sabe se saiu.</p>
+		<div class="stage">
+			<div class="pos num">Fala ${P.sub + 1} de ${L.lines.length} · ${L.title}</div>
+			<div class="say-big-pt">${esc(l.pt)}</div>
+			${P.shown ? `<div class="ans"><div class="say-it">${esc(l.it)}</div>${l.lit ? `<div class="lit">Literal: ${esc(l.lit)}</div>` : ''}<div class="tools"><button class="round-play" data-act="audio" title="Ouvir">${I.play}</button></div></div>` : ''}
+			${subdots(L.lines.length, P.sub, P.res)}
+		</div>`,
+		P.shown
+			? `<span class="sp"></span><button class="btn btn-terra btn-wide" data-act="res" data-v="0">Travei</button><button class="btn btn-ok btn-wide" data-act="res" data-v="1">${I.check}Saiu</button>`
+			: `<span class="sp"></span><button class="btn btn-primary btn-wide" data-act="show">Falei, conferir</button>`);
+}
+
+function renderEnd(P) {
+	let title, lead, facts, extra = '';
+	const w = waveNo();
+	if (P.kind === 'lesson') {
+		title = `Lição ${P.no} concluída`;
+		lead = 'Amanhã vem a próxima. O que ficou confuso volta nas lições seguintes, por isso não precisa decorar.';
+		facts = [[S.saved.size, 'palavras guardadas'], [S.fichas.size, 'notas como Ficha']];
+		if (w && !S.done.has('w' + w)) extra = `<button class="btn btn-soft" data-act="wave">Refazer a lição ${w}</button>`;
+	} else if (P.kind === 'review') {
+		title = 'Semana revisada';
+		lead = 'Amanhã volta a lição nova. Essas notas vão reaparecer nos diálogos.';
+		facts = [[REVIEW[P.no].notes.length, 'notas'], [REVIEW[P.no].phrases.length, 'expressões']];
+	} else {
+		const ok = P.res.filter(Boolean).length;
+		title = `Lição ${P.no} refeita`;
+		lead = ok === P.res.length ? `Tudo saiu. Amanhã é a vez da lição ${P.no + 1}.` : `As falas em que você travou ficam marcadas na lição ${P.no}. Amanhã é a vez da lição ${P.no + 1}.`;
+		facts = [[`${ok} de ${P.res.length}`, 'falas saíram']];
+	}
+	shell(P, `<div class="end"><div class="mk">${I.check}</div><h2>${title}</h2><p class="lead">${lead}</p>
+		<div class="facts">${facts.map(([b, s]) => `<div><b class="num">${b}</b>${s}</div>`).join('')}</div></div>`,
+		`<span class="sp"></span>${extra}<button class="btn btn-primary btn-wide" data-act="close">Voltar à trilha</button>`);
+}
+
+// ── ações ──
+function advance() {
+	const P = S.P;
+	P.shown = false; P.fb = null; P.vals = null;
+	if (P.kind === 'wave') { if (P.sub < subCount(P) - 1) P.sub++; else finish(); return render(); }
+	if (P.sub < subCount(P) - 1) { P.sub++; return render(); }
+	const last = P.kind === 'review' ? 1 : 4;
+	if (P.step < last) { P.step++; P.sub = 0; return render(); }
+	finish(); render();
+}
+function finish() {
+	const P = S.P;
+	P.end = true;
+	if (P.kind === 'wave') S.done.add('w' + P.no);
+	else if (P.no === currentNo()) S.done.add(P.no);
+}
+
+function openWordPop(el) {
+	closeWordPop();
+	const n = el.dataset.w, r = el.getBoundingClientRect(), a = $app.getBoundingClientRect();
+	const has = S.saved.has(n);
+	const p = document.createElement('div');
+	p.className = 'wpop'; p.dataset.act = 'stay';
+	p.innerHTML = `<div class="lema">${esc(n)}</div><div class="forma">Lição ${S.P.no}</div>
+		<div class="sentido">${esc(GLOSS[n] || 'o app busca no dicionário local')}</div>
+		<div class="row"><button class="btn btn-sm ${has ? 'btn-ok' : 'btn-primary'}" data-act="save" data-w="${esc(n)}">${has ? I.check + 'Guardada' : I.plus + 'Guardar'}</button><button class="btn btn-sm btn-soft" data-act="audio">Ouvir</button></div>`;
+	p.style.left = Math.max(10, Math.min(r.left - a.left, a.width - 262)) + 'px';
+	p.style.top = (r.bottom - a.top + 8) + 'px';
+	$app.appendChild(p);
+}
+function closeWordPop() { $app.querySelectorAll('.wpop').forEach(p => p.remove()); }
+
+$app.addEventListener('click', e => {
+	const t = e.target.closest('[data-act]');
+	const act = t?.dataset.act;
+	if (act !== 'word' && act !== 'save' && !e.target.closest('.wpop')) closeWordPop();
+	if (!t) return;
+	const P = S.P;
+	switch (act) {
+		case 'bg': if (S.pop !== null) { S.pop = null; render(); } break;
+		case 'stay': break;
+		case 'node': e.stopPropagation(); { const no = +t.dataset.no; S.pop = S.pop === no ? null : no; render(); } break;
+		case 'start': e.stopPropagation(); startLesson(+t.dataset.no); break;
+		case 'nodemo': e.stopPropagation(); toast('No demo, só as lições 3, 6, 7 e 55 têm conteúdo'); break;
+		case 'wave': e.stopPropagation(); startWave(); break;
+		case 'guide': e.stopPropagation(); toast('Notas da unidade: todas as notas das lições, num lugar só'); break;
+		case 'close': S.screen = 'trail'; S.P = null; render(); break;
+		case 'audio': e.stopPropagation(); toast('Áudio só no app real'); break;
+		case 'next': advance(); break;
+		case 'prevsub': if (P.sub > 0) { P.sub--; render(); } break;
+		case 'show': P.shown = true; render(); break;
+		case 'line': { const i = +t.dataset.i; if (!P.open.has(i)) { P.open.add(i); t.classList.add('open'); const d = t.querySelector('.has-note'); if (d) d.remove(); } } break;
+		case 'word': {
+			const li = t.closest('.line');
+			if (li && !li.classList.contains('open')) { P.open.add(+li.dataset.i); li.classList.add('open'); const d = li.querySelector('.has-note'); if (d) d.remove(); break; }
+			e.stopPropagation(); openWordPop(t); break;
+		}
+		case 'save': {
+			const n = t.dataset.w;
+			if (S.saved.has(n)) S.saved.delete(n); else { S.saved.add(n); toast(`"${n}" guardada em Minhas palavras, com a frase`); }
+			$app.querySelectorAll(`.w[data-w="${CSS.escape(n)}"]`).forEach(x => x.classList.toggle('saved', S.saved.has(n)));
+			const m = $app.querySelector('.pf .msg'); if (m) m.textContent = S.saved.size ? `${S.saved.size} palavra${S.saved.size > 1 ? 's' : ''} guardada${S.saved.size > 1 ? 's' : ''}` : '';
+			closeWordPop(); break;
+		}
+		case 'ficha': e.stopPropagation(); { const k = t.dataset.k; if (!S.fichas.has(k)) { S.fichas.add(k); t.innerHTML = I.check + 'Ficha'; toast('Nota guardada como Ficha'); } } break;
+		case 'check': case 'skip': {
+			const e2 = LESSONS[P.no].ex2[P.sub];
+			P.vals = [...$app.querySelectorAll('.cloze-it input')].map(i => i.value);
+			if (act === 'check' && P.vals.some(v => !v.trim())) { toast('Preencha as lacunas ou toque em "Não sei"'); break; }
+			P.fb = act === 'check' && P.vals.every((v, k) => norm(v) === e2.ans[k]) ? 'ok' : 'bad';
+			render(); break;
+		}
+		case 'res': P.res[P.sub] = t.dataset.v === '1'; advance(); break;
+	}
+});
+
+document.addEventListener('keydown', e => {
+	if (S.screen !== 'player' || e.key !== 'Enter') return;
+	const b = $app.querySelector('.pf .btn-primary:not([disabled])');
+	if (b) { e.preventDefault(); b.click(); }
+});
+
+function render() { closeWordPop(); S.screen === 'trail' ? renderTrail() : renderPlayer(); }
+
+document.querySelectorAll('#days button').forEach(b => b.onclick = () => {
+	document.querySelectorAll('#days button').forEach(x => x.setAttribute('aria-pressed', x === b));
+	S.day = +b.dataset.day; S.screen = 'trail'; S.P = null; S.pop = null; S.done = new Set(); S.saved = new Set(); S.fichas = new Set(); S._scrolled = false; render();
+});
+document.querySelectorAll('#theme button').forEach(b => b.onclick = () => {
+	document.querySelectorAll('#theme button').forEach(x => x.setAttribute('aria-pressed', x === b));
+	document.documentElement.className = 'tema-' + b.dataset.t;
+});
+
+render();
+</script>
+</body>
+</html>

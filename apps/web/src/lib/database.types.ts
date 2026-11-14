@@ -248,6 +248,36 @@ export type Database = {
           },
         ]
       }
+      course_progress: {
+        Row: {
+          completed_at: string
+          course_id: string
+          kind: string
+          lesson_no: number
+          stuck: number[]
+          study_day: string
+          user_id: string
+        }
+        Insert: {
+          completed_at?: string
+          course_id: string
+          kind?: string
+          lesson_no: number
+          stuck?: number[]
+          study_day: string
+          user_id: string
+        }
+        Update: {
+          completed_at?: string
+          course_id?: string
+          kind?: string
+          lesson_no?: number
+          stuck?: number[]
+          study_day?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       decks: {
         Row: {
           created_at: string

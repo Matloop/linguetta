@@ -21,8 +21,14 @@
 
 	let { children, data }: LayoutProps = $props();
 
-	/** Telas com cara própria: landing, entrar e o jogo de música em tela cheia. */
-	const BARE = new Set(['/', '/entrar', '/musica/[id]', '/livros/[id]/ler']);
+	/** Telas com cara própria: landing, entrar e as telas cheias (música, leitor, lição do curso). */
+	const BARE = new Set([
+		'/',
+		'/entrar',
+		'/musica/[id]',
+		'/livros/[id]/ler',
+		'/curso/[course]/[lesson]'
+	]);
 	const bare = $derived(!data.shell || BARE.has(page.route.id ?? ''));
 
 	// Estado local que nasce do cookie e muda na hora; o cookie vai junto.
@@ -209,8 +215,8 @@
 										? 'page'
 										: undefined}
 									title={deckDisplayName(d.name)}
-									><span class="sub-name">{deckDisplayName(d.name)}</span
-									>{#if d.forToday > 0}<span class="sub-n"
+									><span class="sub-name">{deckDisplayName(d.name)}</span>{#if d.forToday > 0}<span
+											class="sub-n"
 											>{d.forToday}<span class="visually-hidden">&nbsp;para hoje</span></span
 										>{/if}</a
 								>
@@ -235,6 +241,9 @@
 					href={resolve('/livros')}
 					aria-current={current('/livros')}
 					title="Livros"><Icon name="bookmark" /><span class="lb">Livros</span></a
+				>
+				<a class="nav-item" href={resolve('/curso')} aria-current={current('/curso')} title="Curso"
+					><Icon name="calendar" /><span class="lb">Curso</span></a
 				>
 				<div class="nav-label">Conexões</div>
 				<a
@@ -320,6 +329,9 @@
 			>
 			<a class="tab" href={resolve('/livros')} aria-current={current('/livros')}
 				><Icon name="bookmark" />Livros</a
+			>
+			<a class="tab" href={resolve('/curso')} aria-current={current('/curso')}
+				><Icon name="calendar" />Curso</a
 			>
 		</nav>
 	</div>
@@ -761,7 +773,7 @@
 		}
 		.tabbar {
 			display: grid;
-			grid-template-columns: repeat(5, 1fr);
+			grid-template-columns: repeat(6, 1fr);
 			position: fixed;
 			z-index: 30;
 			left: 0;
@@ -780,8 +792,9 @@
 			align-items: center;
 			justify-content: center;
 			gap: 3px;
+			min-width: 0;
 			color: var(--ink-3);
-			font-size: 12.5px;
+			font-size: 11.5px;
 			font-weight: 500;
 			border-radius: var(--r-m);
 			position: relative;
