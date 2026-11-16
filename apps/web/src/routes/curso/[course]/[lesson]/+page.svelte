@@ -18,6 +18,8 @@
 	import StepOuvir from '#lib/ui/curso/StepOuvir.svelte';
 	import StepRepetir from '#lib/ui/curso/StepRepetir.svelte';
 	import StepTraduzir from '#lib/ui/curso/StepTraduzir.svelte';
+	import { CourseDict, setCourseDict } from '#lib/ui/curso/dict.svelte.ts';
+	import DictCard from '#lib/ui/dict/DictCard.svelte';
 	import type { PageProps } from './$types';
 
 	let { data }: PageProps = $props();
@@ -52,6 +54,16 @@
 	let fichas = $state<number[]>([]);
 	let stuck = $state<number[]>([]);
 
+	// Dicionário das palavras tocadas nos passos (TapText); um cartão para a lição toda.
+	const dict = new CourseDict({
+		language: () => language,
+		base: () => base,
+		onsaved: (form) => {
+			if (!saved.includes(form)) saved = [...saved, form];
+		}
+	});
+	setCourseDict(dict);
+
 	const step = $derived(steps[index]);
 	const kicker = $derived(step ? `Passo ${index + 1} de ${total} · ${LABELS[step.kind]}` : '');
 
@@ -61,6 +73,7 @@
 	}
 
 	function next() {
+		dict.close();
 		if (index < total - 1) {
 			index++;
 			sub = 0;
@@ -68,6 +81,7 @@
 	}
 
 	async function finish(waveStuck: number[] = []) {
+		dict.close();
 		stuck = waveStuck;
 		ended = true;
 		try {
@@ -192,6 +206,23 @@
 		/>
 	{/if}
 </div>
+
+{#if dict.card}
+	{@const card = dict.card}
+	{#key card}
+		<DictCard
+			query={card.query}
+			line={card.line}
+			translation={card.translation}
+			anchor={card.anchor}
+			inBank={null}
+			saving={dict.saving}
+			message={dict.message}
+			onsave={(input) => dict.save(input)}
+			onclose={() => dict.close()}
+		/>
+	{/key}
+{/if}
 
 <Toast />
 

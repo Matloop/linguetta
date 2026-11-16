@@ -322,10 +322,25 @@ test('palavras do banco viram lacuna primeiro; o cartão mostra o sentido, ouve 
 	// A lacuna da linha 1 é a palavra do banco.
 	expect(await missingWord(page, 1)).toBe('harbor');
 
-	// Tocar numa palavra pausa o jogo e abre o cartão; "No seu banco" mostra o sentido.
+	// O dicionário de contexto responde na hora (sem IA no teste).
+	await page.route('**/palavras/consultar', (route) =>
+		route.fulfill({
+			json: {
+				lemma: 'meadow',
+				reading: '',
+				pos: 'substantivo',
+				sense: 'campina',
+				translation: null
+			}
+		})
+	);
+
+	// Tocar numa palavra pausa o jogo e abre o cartão com o sentido nesta linha.
 	await page.locator('.lin[data-line="0"] .w', { hasText: 'meadow' }).click();
 	const card = page.getByRole('dialog', { name: 'meadow' });
 	await expect(card).toBeVisible();
+	await expect(card).toContainText('campina');
+	await expect(card.getByLabel(/Sentido/)).toHaveValue('campina');
 	await expect(page.getByTestId('estado')).toHaveText('Pausado');
 	expect(await playing(page)).toBe(false);
 	await expect(card.getByRole('button', { name: 'Ouvir' })).toBeVisible();

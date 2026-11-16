@@ -56,7 +56,8 @@ export type MusicEvent =
 	| { type: 'retry' }
 	| { type: 'continue' }
 	| { type: 'leave' }
-	| { type: 'openCard'; line: number; token: number }
+	/** Toque numa palavra (from = to) ou arraste numa expressão, índices de token. */
+	| { type: 'openCard'; line: number; from: number; to: number }
 	| { type: 'closeCard' }
 	| { type: 'openSync' }
 	| { type: 'closeSync'; conclude: boolean }
@@ -152,7 +153,7 @@ export interface MusicView {
 	offset: number;
 	slow: boolean;
 	sync: SyncView | null;
-	card: { line: number; token: number; tokens: Token[] } | null;
+	card: { line: number; from: number; to: number; tokens: Token[] } | null;
 	gameOver: { line: number; parts: LinePart[]; revealed: boolean } | null;
 	/** Âncoras que caíram ao abrir (a letra mudou). */
 	droppedAnchors: number;
@@ -190,7 +191,7 @@ export class MusicController {
 	#ownUntil = -Infinity;
 	#slow = false;
 
-	#card: { line: number; token: number } | null = null;
+	#card: { line: number; from: number; to: number } | null = null;
 	#pausedByCard = false;
 	#selected = 0;
 	#before: Timeline = EMPTY_TIMELINE;
@@ -315,7 +316,7 @@ export class MusicController {
 				}
 				return [];
 			case 'openCard':
-				return this.#openCard(event.line, event.token, now);
+				return this.#openCard(event.line, event.from, event.to, now);
 			case 'closeCard':
 				return this.#closeCard(now);
 			case 'openSync':
@@ -438,10 +439,11 @@ export class MusicController {
 
 		let card: MusicView['card'] = null;
 		if (this.#card && session) {
-			const { line, token } = this.#card;
+			const { line, from, to } = this.#card;
 			card = {
 				line,
-				token,
+				from,
+				to,
 				tokens: maskTokens(session.lines[line].tokens, lines[line]?.gaps ?? [])
 			};
 		}
@@ -585,15 +587,15 @@ export class MusicController {
 		return this.#run(game.retry(), now);
 	}
 
-	#openCard(line: number, token: number, now: number): Effect[] {
+	#openCard(line: number, from: number, to: number, now: number): Effect[] {
 		const session = this.#session;
 		const game = this.#game;
-		if (this.#mode !== 'game' || !session || !game) return [];
-		const t = session.lines[line]?.tokens[token];
-		if (!t || t.key === null) return [];
-		// A palavra da lacuna aberta não abre cartão (seria a resposta).
-		if (game.openGaps(line).some((g) => g.token === token)) return [];
-		this.#card = { line, token };
+		if (this.#mode !== 'game' || !session || !game || from > to) return [];
+		const tokens = session.lines[line]?.tokens;
+		if (tokens?.[from]?.key == null || tokens[to]?.key == null) return [];
+		// Lacuna aberta não abre cartão, nem dentro de uma expressão (seria a resposta).
+		if (game.openGaps(line).some((g) => g.token >= from && g.token <= to)) return [];
+		this.#card = { line, from, to };
 		this.#changed();
 		if (game.phase === 'playing' || game.phase === 'waiting') {
 			this.#pausedByCard = true;

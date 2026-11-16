@@ -5,6 +5,7 @@
 	import Icon from '#lib/ui/Icon.svelte';
 	import { toast } from '#lib/ui/app-state.svelte.ts';
 	import Frame from './Frame.svelte';
+	import TapText from './TapText.svelte';
 
 	let {
 		items,
@@ -106,7 +107,7 @@
 				<span class="mk"><Icon name={right ? 'check' : 'x'} /></span>
 				<div>
 					<b>{right ? 'Isso!' : 'Resposta certa'}</b><span lang={language}
-						>{item ? fillCloze(item) : ''}</span
+						>{#if item}<TapText text={fillCloze(item)} pt={item.pt} {language} />{/if}</span
 					>
 				</div>
 			</div>

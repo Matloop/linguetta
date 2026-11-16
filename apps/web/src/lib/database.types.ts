@@ -408,6 +408,24 @@ export type Database = {
           },
         ]
       }
+      dictionary_lookups: {
+        Row: {
+          created_at: string
+          key: string
+          result: Json
+        }
+        Insert: {
+          created_at?: string
+          key: string
+          result: Json
+        }
+        Update: {
+          created_at?: string
+          key?: string
+          result?: Json
+        }
+        Relationships: []
+      }
       encounters: {
         Row: {
           client_id: string | null
@@ -1194,6 +1212,11 @@ export type Database = {
       }
       default_deck: { Args: { p_language: string }; Returns: string }
       delete_deck: { Args: { p_deck: string; p_mode: string }; Returns: number }
+      dictionary_lookup_get: { Args: { p_key: string }; Returns: Json }
+      dictionary_lookup_put: {
+        Args: { p_key: string; p_result: Json }
+        Returns: undefined
+      }
       ensure_default_deck: {
         Args: { p_language: unknown; p_user: string }
         Returns: string

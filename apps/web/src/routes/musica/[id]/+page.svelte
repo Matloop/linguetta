@@ -9,7 +9,6 @@
 	import Inicio from '#lib/music/Inicio.svelte';
 	import Resumo from '#lib/music/Resumo.svelte';
 	import Sincronia, { type LyricVersion } from '#lib/music/Sincronia.svelte';
-	import WordCard from '#lib/music/WordCard.svelte';
 	import {
 		MusicController,
 		type Effect,
@@ -26,8 +25,12 @@
 		type SessionGap
 	} from '#lib/music/session.ts';
 	import { durationHint, formatOffset, type StoredSync } from '#lib/music/timeline.ts';
+	import { wordKey } from '#lib/music/tokenize.ts';
 	import type { PlayerAdapter } from '#lib/music/youtube.ts';
 	import { createYoutubePlayer } from '#lib/music/youtube-player.ts';
+	import DictCard from '#lib/ui/dict/DictCard.svelte';
+	import { WordPicker, type Anchor, type Pick } from '#lib/ui/dict/picker.svelte.ts';
+	import { spanText, splitLine } from '#lib/ui/dict/span.ts';
 	import type { PageProps } from './$types';
 
 	let { data }: PageProps = $props();
@@ -314,17 +317,17 @@
 
 	let showPt = $state(true);
 
-	// ---------- cartão de palavra ----------
-	let cardAnchor = $state<{ left: number; top: number; bottom: number; width: number } | null>(
-		null
-	);
+	// ---------- cartão do dicionário ----------
+	// Toque numa palavra ou arraste numa expressão da mesma linha (WordPicker). Lacuna sem
+	// resposta não é tocável; o controller pausa ao abrir e só retoma se estava tocando.
+	let cardAnchor = $state<Anchor | null>(null);
 	let cardSaving = $state(false);
+	const picker = new WordPicker(openCard);
 
-	function openCard(line: number, token: number, el: HTMLElement) {
-		const r = el.getBoundingClientRect();
-		cardAnchor = { left: r.left, top: r.top, bottom: r.bottom, width: r.width };
+	function openCard(pick: Pick) {
+		cardAnchor = pick.anchor;
 		cardMessage = '';
-		send({ type: 'openCard', line, token });
+		send({ type: 'openCard', line: Number(pick.group), from: pick.from, to: pick.to });
 	}
 
 	function closeCard() {
@@ -332,15 +335,35 @@
 	}
 
 	const card = $derived(view?.card ?? null);
-	const cardToken = $derived(card && session ? session.lines[card.line].tokens[card.token] : null);
-	const cardKey = $derived(cardToken?.key ?? '');
+	$effect(() => {
+		if (!card) picker.clear();
+	});
+	/** O trecho como está na letra ("amo", "ti amo"). */
+	const cardText = $derived(card ? spanText(card.tokens, card) : '');
+	const cardKey = $derived(wordKey(cardText));
+	const cardQuery = $derived.by(() => {
+		if (!card || !session) return null;
+		const around = (i: number) => session?.lines[i]?.text || undefined;
+		return {
+			language: lang,
+			text: cardText,
+			// A linha com as lacunas abertas mascaradas: a tradução não entrega a resposta.
+			sentence: card.tokens.map((t) => t.text).join(''),
+			before: around(card.line - 1),
+			after: around(card.line + 1),
+			translateSentence: true
+		};
+	});
 
 	// ---------- salvar palavras ----------
 	let saving = $state(false);
 	let summaryMessage = $state('');
 
 	interface SaveItem {
+		/** Chave da forma na letra (o que marca a palavra como "no banco"). */
 		key: string;
+		/** Lema a guardar: o do dicionário, ou a própria forma. */
+		lemma: string;
 		text: string;
 		line: number;
 		sense: string;
@@ -353,7 +376,7 @@
 		const body = {
 			workId: song.id,
 			words: items.map((i) => ({
-				lemma: i.key,
+				lemma: i.lemma,
 				sense: i.sense,
 				sentence: lines[i.line].text,
 				highlight: i.text,
@@ -368,12 +391,12 @@
 			});
 			if (!res.ok) return false;
 			const out = (await res.json()) as { saved: string[]; existing: string[] };
-			// O banco devolve o lema como está guardado; a chave do jogo é minúscula.
+			// O banco devolve o lema como está guardado; a comparação é em minúsculas.
 			const created = new Set(out.saved.map((l) => l.toLowerCase()));
 			const done = new Set([...created, ...out.existing.map((l) => l.toLowerCase())]);
 			let ok = true;
 			for (const item of items) {
-				const key = item.key.toLowerCase();
+				const key = item.lemma.toLowerCase();
 				if (!done.has(key)) {
 					ok = false;
 					continue;
@@ -392,11 +415,17 @@
 	}
 
 	let cardMessage = $state('');
-	async function saveFromCard(sense: string) {
-		if (!card || !cardToken || !cardToken.key || cardSaving) return;
+	async function saveFromCard(input: { lemma: string; sense: string }) {
+		if (!card || !cardKey || cardSaving) return;
 		cardSaving = true;
 		const ok = await saveWords([
-			{ key: cardToken.key, text: cardToken.text, line: card.line, sense: sense.trim() }
+			{
+				key: cardKey,
+				lemma: input.lemma.trim() || cardKey,
+				text: cardText,
+				line: card.line,
+				sense: input.sense.trim()
+			}
 		]);
 		cardSaving = false;
 		if (ok) closeCard();
@@ -419,7 +448,7 @@
 		if (missing.length === 0 || saving) return;
 		saving = true;
 		const ok = await saveWords(
-			missing.map((g) => ({ key: g.key, text: g.answer, line: g.line, sense: '' }))
+			missing.map((g) => ({ key: g.key, lemma: g.key, text: g.answer, line: g.line, sense: '' }))
 		);
 		saving = false;
 		summaryMessage = ok ? '' : 'Algumas palavras não foram salvas. Tente de novo.';
@@ -680,7 +709,7 @@
 								class:alvo-sinc={syncing && i === view?.sync?.selected}
 								bind:this={lineEls[i]}
 							>
-								<p class="txt" {lang}>
+								<p class="txt" {lang} {@attach picker.group(String(i))}>
 									{#if syncing}
 										<button
 											type="button"
@@ -700,6 +729,7 @@
 													class:alvo={answerable?.line === i && answerable.token === p.token}
 													role="img"
 													aria-label="lacuna"
+													data-tok-block={p.token}
 												></span>{:else}<button
 													type="button"
 													class="w"
@@ -707,7 +737,8 @@
 													class:salva={savedNow.has(p.key)}
 													class:ok={p.mark === 'ok'}
 													class:err={p.mark === 'err'}
-													onclick={(e) => openCard(i, p.token, e.currentTarget)}>{p.text}</button
+													class:sel={picker.has(String(i), p.token)}
+													data-tok={p.token}>{p.text}</button
 												>{/if}{/each}
 									{/if}
 								</p>
@@ -757,7 +788,7 @@
 				</span>
 			{/if}
 			<span class="aviso {notice.tone}" class:so={estadoOculto} aria-live="polite"
-				>{notice.text || cardMessage}</span
+				>{notice.text}</span
 			>
 		</div>
 
@@ -898,18 +929,19 @@
 	</footer>
 </div>
 
-{#if card && cardToken && cardAnchor}
-	<WordCard
-		{lang}
-		text={cardToken.text}
-		tokens={card.tokens}
-		highlightIndex={card.token}
-		anchor={cardAnchor}
-		inBank={bank.get(cardKey) ?? null}
-		saving={cardSaving}
-		onsave={saveFromCard}
-		onclose={closeCard}
-	/>
+{#if card && cardQuery && cardAnchor}
+	{#key `${card.line}:${card.from}:${card.to}`}
+		<DictCard
+			query={cardQuery}
+			line={splitLine(card.tokens, card)}
+			anchor={cardAnchor}
+			inBank={bank.get(cardKey) ?? null}
+			saving={cardSaving}
+			message={cardMessage}
+			onsave={saveFromCard}
+			onclose={closeCard}
+		/>
+	{/key}
 {/if}
 
 {#if !started}
@@ -1348,6 +1380,14 @@
 		background: var(--hover);
 	}
 
+	/* Arraste na horizontal escolhe uma expressão; na vertical, o navegador fica com o gesto. */
+	.lin .txt .w {
+		touch-action: pan-y;
+		user-select: none;
+		-webkit-user-select: none;
+		-webkit-touch-callout: none;
+	}
+
 	.w.nobanco {
 		text-decoration: underline dotted 2px var(--gold-ink);
 		text-underline-offset: 7px;
@@ -1415,6 +1455,12 @@
 		background: var(--sel);
 		color: var(--ink);
 		box-shadow: inset 0 -2px 0 var(--terra-ink);
+	}
+
+	/* trecho escolhido para o dicionário (arraste ou cartão aberto) */
+	.lin .txt .w.sel {
+		background: var(--hl);
+		color: var(--hl-ink);
 	}
 
 	@keyframes pega {

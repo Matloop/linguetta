@@ -5,9 +5,11 @@
 <script lang="ts">
 	import type { Lesson } from '#lib/curso/index.ts';
 	import Icon from '#lib/ui/Icon.svelte';
+	import { lineAudioUrl } from '#lib/curso/audio.ts';
 	import AudioButton from './AudioButton.svelte';
 	import Frame from './Frame.svelte';
-	import Rich from './Rich.svelte';
+	import { dialogNeighbours } from './dict.svelte.ts';
+	import TapText from './TapText.svelte';
 
 	let {
 		lesson,
@@ -54,9 +56,17 @@
 			<div class="say-big-pt">{line.pt}</div>
 			{#if shown}
 				<div class="ans">
-					<div class="say-it" lang={language}><Rich text={line.it} /></div>
+					<div class="say-it" lang={language}>
+						<TapText
+							text={line.it}
+							pt={line.pt}
+							{language}
+							line={i}
+							{...dialogNeighbours(lines, i)}
+						/>
+					</div>
 					{#if line.lit}<div class="lit">Literal: {line.lit}</div>{/if}
-					<div class="tools"><AudioButton label="Ouvir a fala" /></div>
+					<div class="tools"><AudioButton src={lineAudioUrl(language, line.it)} label="Ouvir a fala" /></div>
 				</div>
 			{/if}
 		</div>

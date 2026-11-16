@@ -1,9 +1,11 @@
 <!-- Passo Ouvir: o diálogo inteiro, só em italiano, com o botão grande de tocar. -->
 <script lang="ts">
 	import type { Lesson } from '#lib/curso/index.ts';
+	import { dialogAudioUrl } from '#lib/curso/audio.ts';
 	import AudioButton from './AudioButton.svelte';
 	import Frame from './Frame.svelte';
-	import Rich from './Rich.svelte';
+	import { dialogNeighbours } from './dict.svelte.ts';
+	import TapText from './TapText.svelte';
 
 	let {
 		lesson,
@@ -19,14 +21,16 @@
 	<h2>Ouça a lição inteira</h2>
 	<p class="lead">Não tente entender tudo. Só pegue o ritmo e a melodia das frases.</p>
 	<div class="listen">
-		<AudioButton size="big" label="Tocar o diálogo" />
+		<AudioButton src={dialogAudioUrl(language, lesson.no)} size="big" label="Tocar o diálogo" />
 		<div class="meta">
 			{lesson.title}<span>Lição {lesson.no} · {lines.length} falas</span>
 		</div>
 	</div>
 	<ol class="script" lang={language}>
 		{#each lines as l, i (i)}
-			<li class:sep={l.sep}><Rich text={l.it} /></li>
+			<li class:sep={l.sep}>
+				<TapText text={l.it} pt={l.pt} {language} line={i} {...dialogNeighbours(lines, i)} />
+			</li>
 		{/each}
 	</ol>
 	{#snippet foot()}

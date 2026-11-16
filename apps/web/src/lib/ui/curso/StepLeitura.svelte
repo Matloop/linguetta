@@ -1,9 +1,11 @@
 <!-- Passo de leitura: explicação longa (introdução, pronúncia, gramática da revisão). -->
 <script lang="ts">
 	import type { Block } from '#lib/curso/index.ts';
+	import { lineAudioUrl } from '#lib/curso/audio.ts';
 	import AudioButton from './AudioButton.svelte';
 	import Frame from './Frame.svelte';
 	import Rich from './Rich.svelte';
+	import TapText from './TapText.svelte';
 
 	let {
 		title,
@@ -38,9 +40,11 @@
 				<ul class="ex">
 					{#each b.items as e, j (j)}
 						<li>
-							<AudioButton size="mini" />
+							<AudioButton src={lineAudioUrl(language, e.it)} size="mini" />
 							<div class="ex-t">
-								<span class="ex-it" lang={language}><Rich text={e.it} /></span>
+								<span class="ex-it" lang={language}
+									><TapText text={e.it} pt={e.pt} {language} /></span
+								>
 								{#if e.pron}<span class="ex-pron">[{e.pron}]</span>{/if}
 								<span class="ex-pt">{e.pt}</span>
 							</div>

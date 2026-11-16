@@ -36,11 +36,18 @@ const action: fc.Arbitrary<Action> = fc.oneof(
 				fc.constant<MusicEvent>({ type: 'continue' }),
 				fc.constant<MusicEvent>({ type: 'leave' }),
 				fc.constant<MusicEvent>({ type: 'backToStart' }),
-				fc.record({
-					type: fc.constant('openCard' as const),
-					line,
-					token: fc.integer({ min: 0, max: 12 })
-				}),
+				fc
+					.record({
+						line,
+						from: fc.integer({ min: 0, max: 12 }),
+						size: fc.integer({ min: 0, max: 4 })
+					})
+					.map(({ line, from, size }): MusicEvent => ({
+						type: 'openCard',
+						line,
+						from,
+						to: from + size
+					})),
 				fc.constant<MusicEvent>({ type: 'closeCard' }),
 				fc.constant<MusicEvent>({ type: 'openSync' }),
 				fc.boolean().map((conclude): MusicEvent => ({ type: 'closeSync', conclude })),

@@ -3,6 +3,8 @@
 
 import { describe, expect, test } from 'bun:test';
 import { checkAll } from './invariants.ts';
+import { buildSession } from '../session.ts';
+import { mulberry32 } from '../rng.ts';
 import { SIM_LYRICS, Simulator } from './simulator.ts';
 
 const QUIRKY = { seekLagMs: 400, keyframeS: 2, bufferMs: 250, stateLagMs: 60, jitterS: 0.1 };
@@ -178,6 +180,42 @@ describe('mover a letra por mais de 1 s', () => {
 		sim.run(500);
 		const effects = sim.send({ type: 'syncSeek', to: -3, play: true });
 		expect(effects).toEqual([{ type: 'seek', to: 0 }, { type: 'play' }]);
+		noViolations(sim);
+	});
+});
+
+describe('cartão do dicionário: expressão não atravessa lacuna aberta', () => {
+	test('arraste por cima de uma lacuna aberta não abre; ao lado dela, abre', () => {
+		const session = buildSession({
+			lyrics: SIM_LYRICS,
+			lang: 'en',
+			difficulty: 'iniciante',
+			bank: new Map(),
+			rng: mulberry32(3)
+		});
+		const sim = new Simulator({ player: QUIRKY, session });
+		sim.start();
+		sim.run(2_000);
+		const line = sim.view.lines.find(
+			(l) => l.gaps.some((g) => !g.result) && l.parts.some((p) => p.kind === 'word')
+		);
+		expect(line).toBeDefined();
+		if (!line) return;
+		const gap = line.gaps.find((g) => !g.result)!;
+		const words = line.parts.filter((p) => p.kind === 'word').map((p) => p.token);
+		const before = words.filter((t) => t < gap.token);
+		const after = words.filter((t) => t > gap.token);
+		if (before.length > 0 && after.length > 0) {
+			sim.send({ type: 'openCard', line: line.index, from: before[0], to: after.at(-1)! });
+			expect(sim.view.card).toBeNull();
+		}
+		// A palavra vizinha da lacuna e a anterior a ela, se não houver outra lacuna no meio.
+		const near = before.length > 0 ? before.at(-1)! : after[0];
+		const open = new Set(line.parts.filter((p) => p.kind === 'gap').map((p) => p.token));
+		const prev = words.filter((t) => t < near).at(-1);
+		const from = prev !== undefined && ![...open].some((t) => t > prev && t < near) ? prev : near;
+		sim.send({ type: 'openCard', line: line.index, from, to: near });
+		expect(sim.view.card).toMatchObject({ line: line.index, from, to: near });
 		noViolations(sim);
 	});
 });

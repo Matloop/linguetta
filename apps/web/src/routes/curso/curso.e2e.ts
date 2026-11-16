@@ -107,3 +107,57 @@ test('lição 1: guardar uma palavra da fala e a nota como ficha', async ({ page
 	const fichas = await restAsUser<{ tags: string[] }[]>(page, 'fichas?select=tags');
 	expect(fichas).toEqual([{ tags: ['curso'] }]);
 });
+
+test('lição 1: arrastar numa fala abre o dicionário da expressão e guarda com a lição', async ({
+	page
+}) => {
+	await login(page, undefined, ['it']);
+	await lesson0Done(page);
+	let asked: Record<string, unknown> | null = null;
+	await page.route('**/palavras/consultar', async (route) => {
+		asked = route.request().postDataJSON() as Record<string, unknown>;
+		await route.fulfill({
+			json: {
+				lemma: 'nuovo coinquilino',
+				reading: '',
+				pos: 'expressão',
+				sense: 'novo colega de apartamento',
+				translation: null
+			}
+		});
+	});
+	await page.goto('/curso/italiano-1/1');
+	await expect(page.getByRole('heading', { name: 'Ouça a lição inteira' })).toBeVisible();
+
+	// Arrasta de "nuovo" até "coinquilino" na segunda fala.
+	const line = page.locator('.script li').nth(1);
+	const from = await line.getByRole('button', { name: 'nuovo', exact: true }).boundingBox();
+	const to = await line.getByRole('button', { name: 'coinquilino', exact: true }).boundingBox();
+	if (!from || !to) throw new Error('palavras sem caixa');
+	await page.mouse.move(from.x + 4, from.y + from.height / 2);
+	await page.mouse.down();
+	await page.mouse.move(to.x + to.width / 2, to.y + to.height / 2, { steps: 6 });
+	await page.mouse.up();
+
+	const card = page.getByRole('dialog', { name: 'nuovo coinquilino' });
+	await expect(card).toContainText('novo colega de apartamento');
+	// A tradução da linha vem da própria lição; o dicionário não traduz a frase.
+	await expect(card).toContainText('Oi! Sou o Rafael, o novo colega de apartamento.');
+	expect(asked).toMatchObject({
+		language: 'it',
+		text: 'nuovo coinquilino',
+		sentence: 'Ciao! Sono Rafael, il nuovo coinquilino.',
+		before: 'Sì? Chi è?',
+		translateSentence: false
+	});
+
+	await card.getByRole('button', { name: 'Salvar' }).click();
+	await expect(page.getByRole('status')).toContainText('"nuovo coinquilino" guardada');
+	await expect(card).toBeHidden();
+
+	const items = await restAsUser<
+		{ lemma: string; sense: string; encounters: { origin: string; form: string }[] }[]
+	>(page, 'items?select=lemma,sense,encounters(origin,form)&lemma=eq.nuovo%20coinquilino');
+	expect(items[0]).toMatchObject({ sense: 'novo colega de apartamento' });
+	expect(items[0]?.encounters[0]).toMatchObject({ origin: 'curso', form: 'nuovo coinquilino' });
+});

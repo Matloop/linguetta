@@ -1,9 +1,10 @@
 <!-- Exercício 1: ler a frase em voz alta, pensar na tradução e conferir. -->
 <script lang="ts">
 	import type { TranslateItem } from '#lib/curso/index.ts';
+	import { lineAudioUrl } from '#lib/curso/audio.ts';
 	import AudioButton from './AudioButton.svelte';
 	import Frame from './Frame.svelte';
-	import Rich from './Rich.svelte';
+	import TapText from './TapText.svelte';
 
 	let {
 		items,
@@ -42,8 +43,10 @@
 	{#if item}
 		<div class="stage">
 			<div class="pos">Frase {i + 1} de {items.length}</div>
-			<div class="say-it" lang={language}><Rich text={item.it} /></div>
-			<div class="tools"><AudioButton label="Ouvir a frase" /></div>
+			<div class="say-it" lang={language}>
+				<TapText text={item.it} pt={item.pt} {language} tappable={shown} />
+			</div>
+			<div class="tools"><AudioButton src={lineAudioUrl(language, item.it)} label="Ouvir a frase" /></div>
 		</div>
 		{#if items.length > 1}
 			<div class="subdots" aria-hidden="true">

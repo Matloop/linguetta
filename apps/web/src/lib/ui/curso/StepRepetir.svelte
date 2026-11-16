@@ -1,9 +1,11 @@
 <!-- Passo Repetir: uma fala por vez, em voz alta, imitando a entonação. -->
 <script lang="ts">
 	import type { Lesson } from '#lib/curso/index.ts';
+	import { lineAudioUrl } from '#lib/curso/audio.ts';
 	import AudioButton from './AudioButton.svelte';
 	import Frame from './Frame.svelte';
-	import Rich from './Rich.svelte';
+	import { dialogNeighbours } from './dict.svelte.ts';
+	import TapText from './TapText.svelte';
 
 	let {
 		lesson,
@@ -43,9 +45,11 @@
 	{#if line}
 		<div class="stage">
 			<div class="pos">Fala {i + 1} de {lines.length}</div>
-			<div class="say-it" lang={language}><Rich text={line.it} /></div>
+			<div class="say-it" lang={language}>
+				<TapText text={line.it} pt={line.pt} {language} line={i} {...dialogNeighbours(lines, i)} />
+			</div>
 			<div class="say-pt">{line.pt}</div>
-			<div class="tools"><AudioButton label="Ouvir a fala" /></div>
+			<div class="tools"><AudioButton src={lineAudioUrl(language, line.it)} label="Ouvir a fala" /></div>
 		</div>
 	{/if}
 	{#snippet foot()}

@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { parseMarkup, plainText } from './markup.ts';
+import { parseMarkup, plainText, richTokens } from './markup.ts';
 
 const seg = (text: string, em = false, strong = false) => ({ text, em, strong });
 
@@ -38,4 +38,23 @@ describe('parseMarkup', () => {
 
 test('plainText tira a marcação', () => {
 	expect(plainText('*Ne* retoma **algo**.')).toBe('Ne retoma algo.');
+});
+
+describe('richTokens', () => {
+	test('palavras do texto renderizado, sem os asteriscos', () => {
+		const tokens = richTokens('**Cia**o, come stai?', 'it');
+		expect(tokens.map((t) => t.text).join('')).toBe('Ciao, come stai?');
+		expect(tokens.filter((t) => t.word).map((t) => t.text)).toEqual(['Ciao', 'come', 'stai']);
+	});
+
+	test('a palavra guarda o estilo de cada pedaço', () => {
+		const [ciao] = richTokens('**Cia**o!', 'it');
+		expect(ciao.pieces).toEqual([seg('Cia', false, true), seg('o')]);
+	});
+
+	test('elisão do italiano separa o artigo', () => {
+		const words = richTokens("l'*amore*", 'it').filter((t) => t.word);
+		expect(words.map((t) => t.text)).toEqual(["l'", 'amore']);
+		expect(words[1].pieces).toEqual([seg('amore', true)]);
+	});
 });

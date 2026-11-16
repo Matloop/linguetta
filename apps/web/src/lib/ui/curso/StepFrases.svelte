@@ -1,9 +1,11 @@
 <!-- Frases soltas para ouvir e repetir (ritmo, entonação, sílaba tônica em negrito), uma por tela. -->
 <script lang="ts">
 	import type { Example } from '#lib/curso/index.ts';
+	import { lineAudioUrl } from '#lib/curso/audio.ts';
 	import AudioButton from './AudioButton.svelte';
 	import Frame from './Frame.svelte';
 	import Rich from './Rich.svelte';
+	import TapText from './TapText.svelte';
 
 	let {
 		title,
@@ -46,10 +48,12 @@
 	{#if item}
 		<div class="stage">
 			<div class="pos">{i + 1} de {items.length}</div>
-			<div class="say-it tonic" lang={language}><Rich text={item.it} /></div>
+			<div class="say-it tonic" lang={language}>
+				<TapText text={item.it} pt={item.pt} {language} />
+			</div>
 			{#if item.pron}<div class="pron">[{item.pron}]</div>{/if}
 			<div class="say-pt">{item.pt}</div>
-			<div class="tools"><AudioButton label="Ouvir" /></div>
+			<div class="tools"><AudioButton src={lineAudioUrl(language, item.it)} label="Ouvir" /></div>
 		</div>
 	{/if}
 	{#snippet foot()}
