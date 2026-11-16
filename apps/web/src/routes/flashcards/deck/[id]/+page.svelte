@@ -147,7 +147,7 @@
 			{ id: deck.id, onReader: String(on) },
 			on ? 'Aparece no leitor' : 'Fora do leitor'
 		);
-	const makeDefault = () => save('default', { id: deck.id }, `Palavras guardadas caem em ${name}`);
+	const makeDefault = () => save('setDefault', { id: deck.id }, `Palavras guardadas caem em ${name}`);
 
 	// ---------- Apagar ----------
 	let delDialog: HTMLDialogElement | undefined = $state();
@@ -155,15 +155,22 @@
 	const content = $derived(deck.total.items + deck.total.fichas);
 	async function remove(e: SubmitEvent) {
 		e.preventDefault();
-		const r = await save('delete', { id: deck.id, mode: delMode });
-		if (!r) return;
+		// Sem recarregar: o baralho some, e a página dele daria 404 antes do goto.
+		busy = true;
+		const r = await postAction('delete', { id: deck.id, mode: delMode }, { reload: false });
+		busy = false;
+		if (!r.ok) {
+			toast(r.message);
+			return;
+		}
 		delDialog?.close();
 		toast(
 			delMode === 'move'
 				? `Baralho apagado; ${plural(content, 'carta foi', 'cartas foram')} para ${deckDisplayName(data.defaultName)}`
 				: 'Baralho apagado'
 		);
-		await goto(resolve('/flashcards'));
+		// invalidateAll: a barra lateral também lista os baralhos.
+		await goto(resolve('/flashcards'), { invalidateAll: true });
 	}
 
 	function onkeydown(e: KeyboardEvent) {

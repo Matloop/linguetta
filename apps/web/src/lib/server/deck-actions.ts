@@ -161,7 +161,8 @@ export async function limitsAction(event: Event) {
 	return { op: 'limits' as const };
 }
 
-export async function defaultAction(event: Event) {
+/** Padrão: "default" não pode ser nome de action (é a action sem nome do SvelteKit). */
+export async function setDefaultAction(event: Event) {
 	const { form } = await context(event);
 	const res = await setDefaultDeck(event.locals.supabase, form.get('id')?.toString() ?? '');
 	if (!res.ok) return fail(400, { op: 'default', message: res.message });

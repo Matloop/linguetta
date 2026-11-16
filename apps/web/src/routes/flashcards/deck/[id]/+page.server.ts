@@ -4,14 +4,14 @@ import { fichaPlainText } from '#lib/fichas.ts';
 import { formatNextReview, nextDayStart } from '#lib/review.ts';
 import { loadDeckSummaries, loadQueueState } from '#lib/server/decks.ts';
 import {
-	defaultAction,
 	deleteAction,
 	limitsAction,
 	moveAction,
 	optionsAction,
 	pauseAction,
 	releaseAction,
-	renameAction
+	renameAction,
+	setDefaultAction
 } from '#lib/server/deck-actions.ts';
 import { planNew, scopeDeckIds } from '#lib/server/queue.ts';
 import type { Actions, PageServerLoad } from './$types';
@@ -140,7 +140,7 @@ export const load: PageServerLoad = async ({ locals, params, parent }) => {
 export const actions: Actions = {
 	options: optionsAction,
 	rename: renameAction,
-	default: defaultAction,
+	setDefault: setDefaultAction,
 	delete: deleteAction,
 	move: moveAction,
 	release: releaseAction,

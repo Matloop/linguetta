@@ -89,6 +89,17 @@
 			: null
 	);
 	const inDeck = $derived(data.items.filter((i) => !deckScope || deckScope.has(i.deckId)));
+	/** Palavras no baralho, com os subbaralhos (o seletor mostra; fichas não entram aqui). */
+	const wordsByDeck = $derived(
+		data.items.reduce(
+			(m, i) => m.set(i.deckId, (m.get(i.deckId) ?? 0) + 1),
+			new Map<string, number>()
+		)
+	);
+	const wordsIn = (id: string) =>
+		data.decks
+			.filter((d) => d.id === id || d.parentId === id)
+			.reduce((n, d) => n + (wordsByDeck.get(d.id) ?? 0), 0);
 
 	const now = $derived(new Date(data.now));
 	const study = $derived(langAttrs(data.language));
@@ -294,7 +305,7 @@
 				{ value: '', label: 'Todos os baralhos' },
 				...data.decks.map((d) => ({
 					value: d.id,
-					label: deckLabel(d.name) ?? d.name,
+					label: `${deckLabel(d.name) ?? d.name} · ${wordsIn(d.id)}`,
 					indent: d.depth > 0
 				}))
 			]}
@@ -307,6 +318,28 @@
 	<h1>Minhas palavras</h1>
 	{#if data.items.length > 0}
 		<div class="acts">
+			<form
+				class="search"
+				class:has-q={q.trim() !== ''}
+				method="GET"
+				role="search"
+				onsubmit={(e) => e.preventDefault()}
+			>
+				<label for="busca"><Icon name="search" size="sm" /></label>
+				{#if filter !== 'todas'}<input type="hidden" name="f" value={filter} />{/if}
+				<input
+					id="busca"
+					name="q"
+					type="search"
+					placeholder="Buscar"
+					aria-label="Buscar"
+					autocomplete="off"
+					bind:value={q}
+					oninput={syncUrl}
+					onkeydown={(e) => e.key === 'Escape' && (e.currentTarget as HTMLInputElement).blur()}
+				/>
+				<kbd>/</kbd>
+			</form>
 			<Popover label="Exibir na lista" bind:open={showOpen} width={268}>
 				{#snippet trigger({ toggle, expanded, id })}
 					<button
@@ -381,28 +414,6 @@
 			{/each}
 		</nav>
 		<div class="tools">
-			<form
-				class="search"
-				class:has-q={q.trim() !== ''}
-				method="GET"
-				role="search"
-				onsubmit={(e) => e.preventDefault()}
-			>
-				<label for="busca"><Icon name="search" size="sm" /></label>
-				{#if filter !== 'todas'}<input type="hidden" name="f" value={filter} />{/if}
-				<input
-					id="busca"
-					name="q"
-					type="search"
-					placeholder="Buscar"
-					aria-label="Buscar"
-					autocomplete="off"
-					bind:value={q}
-					oninput={syncUrl}
-					onkeydown={(e) => e.key === 'Escape' && (e.currentTarget as HTMLInputElement).blur()}
-				/>
-				<kbd>/</kbd>
-			</form>
 			{#if data.decks.length > 1}{@render deckSelect('deck-filtro')}{/if}
 			{@render sortSelect('ordem')}
 		</div>
@@ -424,6 +435,14 @@
 				>
 			</div>
 		</div>
+	</div>
+{:else if deckFilter && inDeck.length === 0}
+	<div class="no-res">
+		<b>Nenhuma palavra neste baralho</b>As fichas (como as importadas do Anki) ficam na página do
+		baralho.
+		<a class="btn btn-ghost" href={resolve('/flashcards/deck/[id]', { id: deckFilter })}
+			>Abrir baralho</a
+		>
 	</div>
 {:else if rows.length === 0}
 	<div class="no-res">
@@ -551,26 +570,34 @@
 {/if}
 
 <style>
-	/* Cabeçalho: título e ações; embaixo, abas sublinhadas com busca e ordem à direita. */
+	/* Cabeçalho: título, busca e ações; embaixo, abas sublinhadas com baralho e ordem à direita. */
 	.top {
-		display: grid;
-		grid-template-columns: minmax(0, 1fr) auto;
-		grid-template-areas: 'title acts' 'tabs tools';
+		position: relative;
+		display: flex;
+		flex-wrap: wrap;
 		align-items: center;
 		margin-bottom: 8px;
+	}
+	/* Quebra de linha: as abas não dividem largura com as ações de cima. */
+	.top::before {
+		content: '';
+		order: 2;
+		flex-basis: 100%;
 	}
 	.top.bare {
 		margin-bottom: 28px;
 	}
 	.top h1 {
-		grid-area: title;
+		flex: 1 1 auto;
+		min-width: 0;
 		margin: 0 0 20px;
 		font: 600 30px/1.2 var(--f-head);
 		letter-spacing: -0.02em;
 	}
 	.acts {
-		grid-area: acts;
+		order: 1;
 		align-self: start;
+		margin-left: auto;
 		display: flex;
 		align-items: center;
 		gap: 6px;
@@ -587,12 +614,20 @@
 		margin-left: -2px;
 	}
 	.tabs {
-		grid-area: tabs;
+		order: 3;
+		/* Base de 1px (não 0): com 0 as abas caberiam na linha da quebra, ao lado dela. */
+		flex: 1 1 1px;
 		display: flex;
 		align-items: flex-end;
 		gap: 28px;
 		min-width: 0;
 		border-bottom: 1px solid var(--line);
+		/* Tela estreita: as abas rolam em vez de passar por baixo do baralho e da ordem. */
+		overflow-x: auto;
+		scrollbar-width: none;
+	}
+	.tabs::-webkit-scrollbar {
+		display: none;
 	}
 	.tabs a {
 		position: relative;
@@ -616,7 +651,7 @@
 		position: absolute;
 		left: 0;
 		right: 0;
-		bottom: -1px;
+		bottom: 0;
 		height: 2px;
 		border-radius: 2px;
 		background: var(--ink);
@@ -633,7 +668,7 @@
 		background: var(--terra-ink);
 	}
 	.tools {
-		grid-area: tools;
+		order: 3;
 		align-self: stretch;
 		display: flex;
 		align-items: center;
@@ -643,16 +678,11 @@
 		border-bottom: 1px solid var(--line);
 	}
 
-	/* Busca compacta: ícone + "Buscar" + /; cresce no foco. */
+	/* Busca na linha do título: ícone + "Buscar" + /. */
 	.search {
 		position: relative;
-		margin: 0;
-		width: 210px;
-		transition: width 0.2s var(--ease);
-	}
-	.search:focus-within,
-	.search.has-q {
-		width: 280px;
+		margin: 0 8px 0 0;
+		width: 220px;
 	}
 	.search label {
 		position: absolute;
@@ -665,12 +695,12 @@
 	}
 	.search input {
 		width: 100%;
-		height: 34px;
+		height: 36px;
 		padding: 0 36px 0 34px;
 		border: 0;
 		border-radius: var(--r-m);
 		outline: none;
-		background: transparent;
+		background: var(--sunk);
 		font-size: 14.5px;
 		color: var(--ink);
 		transition:
@@ -982,6 +1012,10 @@
 		font: 600 18.5px var(--f-head);
 		margin-bottom: 4px;
 	}
+	.no-res .btn {
+		display: inline-flex;
+		margin-top: 14px;
+	}
 
 	/* Sem mouse não há hover: a caixa fica sempre à vista, à esquerda do pontinho. */
 	@media (hover: none) {
@@ -998,22 +1032,55 @@
 		}
 	}
 
-	@media (max-width: 980px) {
-		.search {
-			width: 160px;
+	/* Sem espaço para o campo: a busca vira ícone e, aberta, cobre a linha do título. */
+	@media (max-width: 1260px) {
+		.search,
+		.search:focus-within,
+		.search.has-q {
+			width: 38px;
+		}
+		.search input {
+			height: 38px;
+			padding: 0;
+			color: transparent;
+			background: transparent;
+		}
+		.search input::placeholder,
+		.search kbd {
+			display: none;
+			color: transparent;
+		}
+		.search label {
+			left: 11px;
+			color: var(--ink-2);
 		}
 		.search:focus-within,
 		.search.has-q {
-			width: 220px;
+			position: absolute;
+			left: 0;
+			right: 0;
+			top: 0;
+			width: auto;
+			z-index: 2;
+			margin: 0;
+			background: var(--page);
+		}
+		.search:focus-within input,
+		.search.has-q input {
+			padding: 0 12px 0 36px;
+			color: var(--ink);
+			background: var(--sunk);
+		}
+		.search:focus-within input::placeholder,
+		.search.has-q input::placeholder {
+			display: initial;
+			color: var(--ink-3);
 		}
 	}
 
 	/* Mobile: título com busca e Exibir em ícones; filtros em pílulas que rolam. */
 	@media (max-width: 768px) {
 		.top {
-			position: relative;
-			grid-template-columns: minmax(0, 1fr) auto auto;
-			grid-template-areas: 'title tools acts' 'tabs tabs tabs';
 			margin: 0 0 6px;
 		}
 		.top h1 {
@@ -1025,8 +1092,7 @@
 			border: 0;
 		}
 		.tools {
-			padding: 0;
-			align-self: center;
+			display: none;
 		}
 		.tools > .txt-sel,
 		.add-btn,
@@ -1050,48 +1116,9 @@
 			padding: 0 10px;
 			font-size: 15px;
 		}
-		.search,
-		.search:focus-within,
-		.search.has-q {
-			width: 38px;
-		}
-		.search input {
-			height: 38px;
-			padding: 0;
-			color: transparent;
-		}
-		.search input::placeholder,
-		.search kbd {
-			display: none;
-			color: transparent;
-		}
-		.search label {
-			left: 11px;
-			color: var(--ink-2);
-		}
-		/* Aberta, a busca cobre a linha do título. */
-		.search:focus-within,
-		.search.has-q {
-			position: absolute;
-			left: 0;
-			right: 0;
-			top: 0;
-			width: auto;
-			z-index: 2;
-			background: var(--page);
-		}
-		.search:focus-within input,
-		.search.has-q input {
-			padding: 0 12px 0 36px;
-			color: var(--ink);
-			background: var(--sunk);
-		}
-		.search:focus-within input::placeholder,
-		.search.has-q input::placeholder {
-			display: initial;
-			color: var(--ink-3);
-		}
 		.tabs {
+			/* Sangra 16px de cada lado; a base cobre a largura toda para não subir de linha. */
+			flex-basis: calc(100% + 32px);
 			gap: 6px;
 			margin: 12px -16px 4px;
 			padding: 0 16px;

@@ -328,3 +328,19 @@ test('limites diários do baralho: Este baralho e Só hoje', async ({ page }) =>
 	await page.getByTestId('estudar-tudo').click();
 	await expect(counter(page)).toHaveText('1 de 2');
 });
+
+test('baralhos: apagar um baralho vazio pela engrenagem', async ({ page }) => {
+	await login(page);
+	await reviewLink(page).click();
+	await page.getByRole('button', { name: 'Novo baralho' }).click();
+	await page.getByLabel('Nome do baralho').fill('V');
+	await page.getByRole('button', { name: 'Criar' }).click();
+	await expect(page.getByText('Baralho “V” criado')).toBeVisible();
+
+	await page.getByRole('link', { name: 'V', exact: true }).first().click();
+	await page.getByRole('button', { name: 'Opções do baralho' }).click();
+	await page.getByRole('button', { name: 'Apagar baralho…' }).click();
+	await page.getByRole('dialog').getByRole('button', { name: 'Apagar baralho' }).click();
+	await expect(page).toHaveURL(/\/flashcards$/);
+	await expect(nav(page).getByRole('list', { name: 'Baralhos' }).getByRole('link', { name: 'V' })).toHaveCount(0);
+});
