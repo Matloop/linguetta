@@ -1,0 +1,600 @@
+<!doctype html>
+<html lang="pt-BR" class="tema-claro">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Linguetta · Gramática · protótipo</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Manrope:wght@500;600;700&family=Cormorant+Garamond:ital,wght@0,500;1,500&display=swap" rel="stylesheet" />
+<style>
+/* ── tokens reais (apps/web/src/lib/styles/tokens.css) ── */
+:root {
+	--f-head: "Manrope", "Inter", system-ui, sans-serif;
+	--f-body: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+	--f-story: "Cormorant Garamond", Georgia, serif;
+	--ease: cubic-bezier(0.22, 0.8, 0.24, 1);
+	--r-s: 6px; --r-m: 8px; --r-l: 12px;
+}
+.tema-claro {
+	color-scheme: light;
+	--page: #f1ebdf; --panel: #fbf8f2; --raise: #ffffff; --tile: #f6f2ea; --sunk: #efe9de;
+	--hover: rgba(17,38,26,.04); --line: rgba(17,38,26,.08); --line-2: rgba(17,38,26,.14);
+	--ink: #16231b; --ink-2: #464e48; --ink-3: #6e736b;
+	--primary: #1a3626; --primary-hover: #11261a; --on-primary: #f7f1e6;
+	--prog: #1a3626; --prog-track: rgba(17,38,26,.09);
+	--terra-ink: #9a5536; --terra-soft: rgba(168,97,63,.1);
+	--hl: #e3e8dd; --hl-ink: #11261a; --ring: rgba(26,54,38,.28);
+	--soft-bg: var(--raise); --soft-hover: var(--tile);
+	--sh-card: 0 0 0 1px rgba(17,38,26,.07), 0 1px 1px rgba(17,38,26,.03);
+	--sh-lift: 0 0 0 1px rgba(17,38,26,.07), 0 4px 14px -8px rgba(17,38,26,.16);
+	--ok-ink: #3f6b4c; --ok-soft: rgba(138,163,146,.22);
+	--gold-ink: #8f6428; --gold-soft: rgba(184,138,74,.14);
+	--stage: #e6dfd1;
+}
+.tema-escuro {
+	color-scheme: dark;
+	--page: #1a1715; --panel: #211d1a; --raise: #28231f; --tile: rgba(247,241,230,.035); --sunk: rgba(0,0,0,.16);
+	--hover: rgba(247,241,230,.045); --line: rgba(247,241,230,.08); --line-2: rgba(247,241,230,.14);
+	--ink: #f3ede1; --ink-2: #d2d6cd; --ink-3: #a5aea6;
+	--primary: #f3ede1; --primary-hover: #ffffff; --on-primary: #1f1a17;
+	--prog: #e9e2d3; --prog-track: rgba(247,241,230,.1);
+	--terra-ink: #d79b7b; --terra-soft: rgba(215,155,123,.12);
+	--hl: rgba(138,163,146,.24); --hl-ink: #f3ede1; --ring: rgba(243,237,225,.35);
+	--soft-bg: rgba(247,241,230,.05); --soft-hover: rgba(247,241,230,.09);
+	--sh-card: 0 0 0 1px rgba(247,241,230,.07);
+	--sh-lift: 0 0 0 1px rgba(247,241,230,.08), 0 8px 20px -12px rgba(0,0,0,.6);
+	--ok-ink: #a9c9b2; --ok-soft: rgba(138,163,146,.18);
+	--gold-ink: #d9b57c; --gold-soft: rgba(217,181,124,.13);
+	--stage: #121010;
+}
+*, *::before, *::after { box-sizing: border-box; }
+html, body { margin: 0; }
+body { background: var(--stage); color: var(--ink); font: 400 15px/1.55 var(--f-body); -webkit-font-smoothing: antialiased; }
+button, input { font: inherit; color: inherit; }
+button { cursor: pointer; background: none; border: 0; padding: 0; }
+i.it, .it { font-style: italic; }
+
+.topbar { position: sticky; top: 0; z-index: 100; display: flex; align-items: center; gap: 14px; padding: 10px 24px; background: color-mix(in srgb, var(--stage) 86%, transparent); backdrop-filter: blur(14px); border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+.topbar .brand { font: 600 14px var(--f-head); color: var(--ink-2); }
+.topbar .sp { flex: 1; }
+.seg { display: flex; gap: 2px; padding: 3px; background: var(--sunk); border-radius: 10px; box-shadow: inset 0 0 0 1px var(--line); }
+.seg button { height: 28px; padding: 0 11px; border-radius: 7px; font-size: 12.5px; font-weight: 500; color: var(--ink-2); white-space: nowrap; }
+.seg button[aria-pressed="true"] { background: var(--raise); color: var(--ink); box-shadow: var(--sh-card); }
+.tema-escuro .seg button[aria-pressed="true"] { background: rgba(247,241,230,.1); box-shadow: none; }
+.wrap { padding: 24px 20px 60px; max-width: 1040px; margin: 0 auto; }
+
+.app { background: var(--page); border-radius: 16px; box-shadow: 0 0 0 1px var(--line), 0 30px 60px -40px rgba(0,0,0,.35); height: 800px; overflow: hidden; display: flex; flex-direction: column; }
+.app-head { display: flex; align-items: center; gap: 10px; padding: 14px 22px; border-bottom: 1px solid var(--line); flex: none; }
+.wordmark { font: 600 16px/1 var(--f-head); }
+.app-head nav { display: flex; gap: 2px; margin-left: 18px; }
+.app-head nav span { font-size: 13.5px; font-weight: 500; color: var(--ink-3); padding: 5px 10px; border-radius: var(--r-m); }
+.app-head nav span.on { color: var(--ink); background: var(--raise); box-shadow: var(--sh-card); }
+.scroll { flex: 1; overflow-y: auto; }
+
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 42px; padding: 0 20px; border-radius: 10px; font-weight: 600; font-size: 14.5px; white-space: nowrap; transition: background-color .18s, opacity .18s; }
+.btn-primary { background: var(--primary); color: var(--on-primary); }
+.btn-primary:hover { background: var(--primary-hover); }
+.btn-soft { background: var(--soft-bg); box-shadow: var(--sh-card); }
+.btn-soft:hover { background: var(--soft-hover); }
+.btn-ghost { color: var(--ink-2); font-weight: 500; } .btn-ghost:hover { background: var(--hover); }
+.btn-sm { height: 32px; padding: 0 12px; font-size: 13px; border-radius: var(--r-m); }
+.btn[disabled] { opacity: .4; cursor: default; }
+
+/* ── trilha ── */
+.trail { display: grid; grid-template-columns: minmax(0,1fr) 300px; gap: 32px; padding: 26px 28px 60px; max-width: 960px; margin: 0 auto; }
+.trail h1 { font: 600 24px/1.2 var(--f-head); margin: 0 0 4px; letter-spacing: -.015em; }
+.trail .lead { color: var(--ink-3); margin: 0 0 22px; font-size: 14px; }
+.block { margin-bottom: 22px; }
+.block-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 8px; }
+.block-head small { font: 600 11.5px var(--f-body); letter-spacing: .06em; text-transform: uppercase; color: var(--ink-3); }
+.block-head b { font: 600 16px var(--f-head); }
+.units { display: grid; gap: 6px; }
+.unit-row { display: flex; align-items: center; gap: 14px; padding: 12px 14px; border-radius: 12px; background: var(--raise); box-shadow: var(--sh-card); text-align: left; width: 100%; }
+.unit-row:hover { box-shadow: var(--sh-lift); }
+.unit-row .n { width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; font: 600 12.5px var(--f-head); background: var(--tile); color: var(--ink-3); box-shadow: inset 0 0 0 1px var(--line-2); flex: none; }
+.unit-row.cur .n { background: var(--primary); color: var(--on-primary); box-shadow: none; }
+.unit-row .t { flex: 1; min-width: 0; }
+.unit-row .t b { display: block; font: 600 14.5px/1.3 var(--f-head); }
+.unit-row .t span { font-size: 12.5px; color: var(--ink-3); font-family: var(--f-story); font-style: italic; font-size: 14px; }
+.unit-row .warn { font-size: 11.5px; color: var(--gold-ink); background: var(--gold-soft); padding: 3px 8px; border-radius: 999px; white-space: nowrap; }
+.block.dim .unit-row { background: transparent; box-shadow: inset 0 0 0 1px var(--line); }
+
+.side { display: flex; flex-direction: column; gap: 14px; }
+.portrait { background: var(--raise); border-radius: 14px; box-shadow: var(--sh-card); padding: 16px; }
+.portrait small { font: 600 11.5px var(--f-body); letter-spacing: .06em; text-transform: uppercase; color: var(--ink-3); }
+.frame { margin: 10px 0 12px; aspect-ratio: 4/5; border-radius: 6px; padding: 12px; background: linear-gradient(135deg, #6b5330, #3a2c18 55%, #7a5f36); box-shadow: inset 0 0 0 2px rgba(0,0,0,.25), 0 10px 24px -14px rgba(0,0,0,.6); }
+.canvas { width: 100%; height: 100%; border-radius: 2px; background: radial-gradient(ellipse at 50% 38%, #c9a983 0 16%, transparent 17%), radial-gradient(ellipse at 50% 85%, #2b2420 0 34%, transparent 35%), linear-gradient(#5b4b3d, #2a221c); display: grid; place-items: end center; padding-bottom: 10px; color: rgba(255,240,220,.55); font: italic 500 13px var(--f-story); }
+.portrait p { margin: 0; font: italic 500 15px/1.45 var(--f-story); color: var(--ink-2); }
+.meter { height: 6px; border-radius: 99px; background: var(--prog-track); margin-top: 12px; overflow: hidden; }
+.meter i { display: block; height: 100%; background: var(--prog); border-radius: 99px; }
+.portrait .cap { font-size: 12.5px; color: var(--ink-3); margin-top: 6px; }
+.due { background: var(--raise); border-radius: 14px; box-shadow: var(--sh-card); padding: 16px; }
+.due b { font: 600 15px var(--f-head); } .due p { margin: 4px 0 12px; font-size: 13.5px; color: var(--ink-3); }
+
+/* ── player ── */
+.player { display: flex; flex-direction: column; height: 100%; }
+.p-head { display: flex; align-items: center; gap: 14px; padding: 14px 22px; flex: none; }
+.p-head .bar { flex: 1; height: 8px; border-radius: 99px; background: var(--prog-track); overflow: hidden; }
+.p-head .bar i { display: block; height: 100%; background: var(--prog); border-radius: 99px; transition: width .3s var(--ease); }
+.p-head .lbl { font-size: 12.5px; color: var(--ink-3); white-space: nowrap; }
+.p-body { flex: 1; overflow-y: auto; padding: 18px 24px 30px; }
+.p-inner { max-width: 620px; margin: 0 auto; }
+.p-foot { flex: none; border-top: 1px solid var(--line); padding: 14px 24px; display: flex; justify-content: flex-end; gap: 10px; background: var(--panel); }
+.p-foot.ok { background: var(--ok-soft); } .p-foot.bad { background: var(--terra-soft); }
+.p-foot .msg { flex: 1; align-self: center; font-size: 14px; }
+.p-foot.ok .msg { color: var(--ok-ink); } .p-foot.bad .msg { color: var(--terra-ink); }
+.kicker { font: 600 11.5px var(--f-body); letter-spacing: .07em; text-transform: uppercase; color: var(--ink-3); margin: 0 0 6px; }
+h2 { font: 600 22px/1.25 var(--f-head); margin: 0 0 12px; letter-spacing: -.012em; }
+.inst { color: var(--ink-2); margin: 0 0 18px; }
+
+/* episódio */
+.story { background: var(--raise); border-radius: 14px; box-shadow: var(--sh-card); padding: 22px 24px; font: 500 21px/1.6 var(--f-story); }
+.story .scene { font: 600 11.5px var(--f-body); letter-spacing: .07em; text-transform: uppercase; color: var(--ink-3); display: block; margin-bottom: 10px; }
+.story .q { font-style: italic; }
+.art { border-radius: 4px; padding: 0 2px; cursor: pointer; border-bottom: 1.5px dashed var(--line-2); transition: background .15s; }
+.art:hover { background: var(--hover); }
+.art.found { background: var(--hl); color: var(--hl-ink); border-bottom-color: transparent; }
+.pt-line { font: 400 14px/1.55 var(--f-body); color: var(--ink-3); margin-top: 14px; padding-top: 12px; border-top: 1px dashed var(--line-2); }
+.counter { font-size: 13px; color: var(--ink-3); margin-top: 10px; }
+
+/* opções */
+.opts { display: grid; gap: 8px; }
+.opts.row { grid-template-columns: repeat(4, 1fr); }
+.opt { text-align: left; padding: 13px 16px; border-radius: 12px; background: var(--raise); box-shadow: var(--sh-card), 0 3px 0 var(--line-2); font-size: 15px; transition: transform .1s; }
+.opts.row .opt { text-align: center; font: 600 18px var(--f-head); }
+.opt:active { transform: translateY(2px); }
+.opt.sel { box-shadow: 0 0 0 2px var(--prog), 0 3px 0 var(--line-2); }
+.opt.right { background: var(--ok-soft); color: var(--ok-ink); box-shadow: 0 0 0 1.5px var(--ok-ink); }
+.opt.wrong { background: var(--terra-soft); color: var(--terra-ink); box-shadow: 0 0 0 1.5px var(--terra-ink); }
+.prompt { font: 600 26px/1.3 var(--f-head); margin: 4px 0 22px; text-align: center; }
+.prompt .gap { display: inline-block; min-width: 64px; border-bottom: 2.5px solid var(--ink-3); margin: 0 4px; }
+.prompt small { display: block; font: 400 14px var(--f-body); color: var(--ink-3); margin-top: 6px; }
+.field { width: 100%; height: 52px; border-radius: 12px; border: 0; background: var(--raise); box-shadow: var(--sh-card); padding: 0 16px; font-size: 18px; outline: none; }
+.field:focus { box-shadow: 0 0 0 2px var(--ring); }
+textarea.field { height: auto; min-height: 84px; padding: 14px 16px; resize: vertical; line-height: 1.45; font-family: inherit; color: inherit; }
+.hint { margin-top: 14px; padding: 12px 14px; border-radius: 12px; background: var(--gold-soft); color: var(--gold-ink); font-size: 14.5px; }
+.hint b { font-weight: 600; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.chip { font-size: 13px; padding: 4px 10px; border-radius: 999px; background: var(--tile); box-shadow: inset 0 0 0 1px var(--line); color: var(--ink-2); }
+.ai-note { font-size: 12px; color: var(--ink-3); margin-top: 8px; }
+
+/* ficha */
+.sheet { background: var(--raise); border-radius: 14px; box-shadow: var(--sh-card); padding: 20px 22px; }
+.tbl { width: 100%; border-collapse: collapse; margin: 6px 0 4px; font-size: 14.5px; }
+.tbl th { text-align: left; font: 600 12px var(--f-body); letter-spacing: .04em; text-transform: uppercase; color: var(--ink-3); padding: 8px 10px; border-bottom: 1px solid var(--line-2); }
+.tbl td { padding: 9px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+.tbl td.f { font: 600 18px var(--f-head); white-space: nowrap; }
+.tbl td.ex { font-style: italic; color: var(--ink-2); }
+.pt-box { margin-top: 16px; padding: 14px 16px; border-radius: 12px; background: var(--tile); box-shadow: inset 0 0 0 1px var(--line); font-size: 14.5px; }
+.pt-box b { font: 600 13px var(--f-head); display: block; margin-bottom: 4px; }
+.trap { margin-top: 10px; padding: 14px 16px; border-radius: 12px; background: var(--terra-soft); color: var(--terra-ink); font-size: 14.5px; }
+.trap b { font: 600 13px var(--f-head); display: block; margin-bottom: 4px; }
+
+/* fim */
+.end { text-align: center; padding-top: 10px; }
+.end .portrait-mini { width: 120px; margin: 0 auto 18px; }
+.rules { text-align: left; display: grid; gap: 8px; margin: 18px 0; }
+.rule { display: flex; gap: 12px; align-items: center; padding: 12px 14px; border-radius: 12px; background: var(--raise); box-shadow: var(--sh-card); }
+.rule .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--ok-ink); flex: none; }
+.rule b { font: 600 14.5px var(--f-head); display: block; }
+.rule span { font-size: 13px; color: var(--ink-3); }
+.tease { font: italic 500 18px/1.5 var(--f-story); color: var(--ink-2); margin: 18px auto 0; max-width: 460px; }
+
+/* modelos */
+.models { max-width: 900px; margin: 0 auto; padding: 26px 28px 60px; }
+.models h1 { font: 600 22px var(--f-head); margin: 0 0 4px; }
+.models .lead { color: var(--ink-3); margin: 0 0 18px; font-size: 14px; }
+.model { display: grid; grid-template-columns: 180px 1fr 1fr; gap: 12px; align-items: stretch; margin-bottom: 12px; }
+.model .meta b { font: 600 15px var(--f-head); display: block; }
+.model .meta span { font-size: 13px; color: var(--ink-3); }
+.face { background: var(--raise); border-radius: 12px; box-shadow: var(--sh-card); padding: 14px 16px; font-size: 15px; }
+.face small { display: block; font: 600 10.5px var(--f-body); letter-spacing: .07em; text-transform: uppercase; color: var(--ink-3); margin-bottom: 6px; }
+.face .sub { font-size: 13px; color: var(--ink-3); margin-top: 4px; }
+.face .in { margin-top: 8px; height: 30px; border-radius: 8px; background: var(--tile); box-shadow: inset 0 0 0 1px var(--line); }
+.face .ops { display: flex; gap: 6px; margin-top: 8px; } .face .ops span { flex: 1; text-align: center; padding: 4px 0; border-radius: 8px; background: var(--tile); box-shadow: inset 0 0 0 1px var(--line); font-weight: 600; }
+.face .ok { color: var(--ok-ink); font-weight: 600; }
+
+/* revisão */
+.rev { max-width: 560px; margin: 0 auto; padding: 30px 24px; }
+.rev-card { background: var(--raise); border-radius: 16px; box-shadow: var(--sh-lift); padding: 26px 24px; }
+.rev-card .tagl { display: inline-flex; gap: 6px; font-size: 12px; font-weight: 600; color: var(--gold-ink); background: var(--gold-soft); padding: 4px 10px; border-radius: 999px; margin-bottom: 16px; }
+.grades { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 18px; }
+.grades .btn { height: 52px; flex-direction: column; gap: 0; font-size: 14px; }
+.grades .btn small { font-size: 11.5px; font-weight: 500; opacity: .7; }
+.note { font-size: 12.5px; color: var(--ink-3); text-align: center; margin-top: 14px; }
+.reveal { margin-top: 14px; padding: 12px 14px; border-radius: 12px; background: var(--tile); font-size: 15px; }
+</style>
+</head>
+<body>
+<div class="topbar">
+	<span class="brand">Gramática · protótipo</span>
+	<div class="seg" id="views">
+		<button data-v="trilha" aria-pressed="true">Trilha</button>
+		<button data-v="unidade" aria-pressed="false">Unidade: artigos definidos</button>
+		<button data-v="revisao" aria-pressed="false">Cartão-regra no Revisar</button>
+		<button data-v="modelos" aria-pressed="false">Modelos de cartão</button>
+	</div>
+	<span class="sp"></span>
+	<div class="seg" id="tema">
+		<button data-t="tema-claro" aria-pressed="true">Claro</button>
+		<button data-t="tema-escuro" aria-pressed="false">Escuro</button>
+	</div>
+</div>
+<div class="wrap">
+	<div class="app">
+		<div class="app-head">
+			<span class="wordmark">Linguetta</span>
+			<nav><span>Início</span><span>Revisar</span><span>Palavras</span><span>Curso</span><span class="on">Gramática</span></nav>
+		</div>
+		<div class="scroll" id="root"></div>
+	</div>
+</div>
+
+<script>
+// ───────────────────────── conteúdo ─────────────────────────
+const BLOCKS = [
+	{ no: 1, title: 'Fundamentos', units: [
+		['Artigos definidos', 'L’atelier'],
+		['Artigos indefinidos', 'Un desiderio'],
+		['Gênero e número', 'Le prime prove'],
+		['Pronomes pessoais', 'Lui e lei'],
+		['Presente: verbos regulares', 'Ogni sera'],
+		['Essere e avere', 'Ho tutto, sono tutto'] ] },
+	{ no: 2, title: 'Estrutura das frases', units: [
+		['Adjetivos e concordância', 'Il volto perfetto'],
+		['Preposições', 'Da Venezia a Roma'],
+		['Preposições articuladas', 'Nella soffitta'],
+		['Advérbios', 'Sempre più giovane'],
+		['Negação', 'Non dire niente a nessuno'] ] },
+	{ no: 3, title: 'Conjugações verbais', units: [
+		['Presente: irregulares e -isc-', 'Vado, faccio, vengo'],
+		['Passato prossimo', 'Che cosa ho fatto?'],
+		['Imperfetto', 'Quando ero un altro'],
+		['Futuro semplice', 'Sarò famoso'],
+		['Condizionale presente', 'Vorrei tornare'],
+		['Imperativo', 'Guardami!'] ] },
+	{ no: 4, title: 'Conectivos e construções', units: [
+		['perché, poiché, siccome', ''], ['purché, affinché, benché', ''], ['quindi, dunque, però, tuttavia', ''],
+		['che, cui, il quale', ''], ['Pronomes diretos e indiretos', ''] ] },
+	{ no: 5, title: 'Gramática intermediária', units: [
+		['Congiuntivo presente e passato', ''], ['Periodo ipotetico', ''], ['Pronomes combinados', ''],
+		['Forma passiva', ''], ['Discorso indiretto', ''] ] },
+];
+
+// O episódio 1. Cada artigo é um alvo para a tarefa de notar.
+const EPISODE = [
+	'<span class="scene">Episodio 1 · Venezia, novembre</span>',
+	'[L’]atelier di Ottavia è vicino al canale. [La] porta è aperta. Matteo entra.',
+	'Sopra [il] tavolo ci sono [i] pennelli, [i] colori e [lo] specchio della nonna. [Le] finestre sono chiuse.',
+	'[Il] ritratto è finito. Matteo guarda [gli] occhi del ragazzo dipinto: sono [gli] occhi suoi, ma più belli.',
+	'Il conte Valier sorride. <span class="q">«[Il] ritratto resterà giovane per sempre. E tu?»</span>',
+	'Matteo guarda [lo] specchio. Poi guarda [il] quadro. <span class="q">«Darei tutto per essere come lui.»</span>',
+];
+const EPISODE_PT = 'O ateliê de Ottavia fica perto do canal. A porta está aberta. Matteo entra. Sobre a mesa há os pincéis, as cores e o espelho da avó. As janelas estão fechadas. O retrato está pronto. Matteo olha os olhos do rapaz pintado: são os olhos dele, só que mais bonitos. O conde Valier sorri: «O retrato vai ficar jovem para sempre. E você?» Matteo olha o espelho. Depois olha o quadro. «Eu daria tudo para ser como ele.»';
+
+// Passos da unidade. A ordem segue: aquecimento → descoberta → ficha → prática → fim.
+const STEPS = [
+	{ k: 'warm' },
+	{ k: 'episode' },
+	{ k: 'discover', q: 'No texto aparece <i>il ritratto</i>, mas <i>lo specchio</i>. O que muda?', opts: [
+		['<i>Specchio</i> é feminino', false, 'Não: <i>lo</i> também é masculino. Os dois são masculinos.'],
+		['<i>Specchio</i> começa com <b>s + consoante</b>', true, 'Isso. O artigo depende do <b>som</b> com que a palavra começa.'],
+		['É questão de estilo, tanto faz', false, 'Não é estilo: <i>il specchio</i> soa errado para um italiano.'] ] },
+	{ k: 'discover', q: 'E por que <i>gli occhi</i>, e não <i>i occhi</i>?', opts: [
+		['Porque <i>occhi</i> começa com vogal', true, 'Isso. No singular seria <i>l’occhio</i>; no plural, <i>gli</i>.'],
+		['Porque são dois olhos', false, 'Plural sim, mas <i>i pennelli</i> também é plural e usa <i>i</i>. O que <i>occhi</i> tem de diferente?'],
+		['Porque é parte do corpo', false, 'Não: <i>i piedi</i>, <i>i capelli</i>… O segredo está na primeira letra.'] ] },
+	{ k: 'sheet' },
+	{ k: 'choice', kind: 'Entender', q: '<i>l’arte</i>', sub: 'Masculino ou feminino?', opts: [
+		['Masculino', false], ['Feminino', false], ['Pelo artigo não dá para saber', true] ],
+		why: 'Antes de vogal, <i>lo</i> e <i>la</i> viram <i>l’</i> e o gênero some. (<i>Arte</i> é feminino, mas é o adjetivo ou o dicionário que conta.)' },
+	{ k: 'row', q: '<span class="gap"></span> zaino', sub: 'mochila', a: 'lo', opts: ['il','lo','l’','la'], hints: { il: 'Palavras que começam com <b>z</b> pedem <i>lo</i>, como as com s + consoante.' } },
+	{ k: 'row', q: '<span class="gap"></span> attore', sub: 'ator', a: 'l’', opts: ['il','lo','l’','la'], hints: { lo: '<i>Lo</i> diante de vogal perde o <i>o</i>: vira <i>l’</i>.', il: '<i>Il</i> nunca vem antes de vogal. Aqui é <i>l’</i>.' } },
+	{ k: 'row', q: '<span class="gap"></span> sedia', sub: 'cadeira', a: 'la', opts: ['il','lo','l’','la'], hints: { il: '<i>Sedia</i> termina em <b>-a</b>, quase sempre feminino.' } },
+	{ k: 'type', q: '<span class="gap"></span> studenti aspettano fuori.', sub: 'Os estudantes esperam lá fora.', a: ['gli'], hints: { i: 'No singular é <i>lo studente</i> (s + consoante). O plural de <i>lo</i> é…', lo: 'Aqui é plural: <i>studenti</i>.' } },
+	{ k: 'type', q: 'il pennello → <span class="gap"></span> pennelli', sub: 'Passe para o plural.', a: ['i'], hints: { gli: '<i>Gli</i> é o plural de <i>lo</i> e <i>l’</i>. <i>Il</i> vira…' } },
+	{ k: 'type', q: 'l’occhio → <span class="gap"></span> occhi', sub: 'Passe para o plural.', a: ['gli'], hints: { i: 'Vogal no começo: o plural de <i>l’</i> masculino é <i>gli</i>.', "l'": 'No plural o apóstrofo some.' } },
+	{ k: 'row', q: '<span class="gap"></span> bravo attore', sub: 'Pegadinha: qual palavra vem logo depois do artigo?', a: 'il', opts: ['il','lo','l’','la'], hints: { "l’": 'O artigo olha a palavra <b>seguinte</b>: aqui é <i>bravo</i> (b), não <i>attore</i>.', lo: 'O artigo olha a palavra seguinte: <i>bravo</i> começa com b.' } },
+	{ k: 'compose', pt: 'Os quadros e as cores estão sobre a mesa.', chips: ['quadro', 'colore', 'sopra', 'tavolo', 'sono = estão'] },
+	{ k: 'end' },
+];
+
+const RULES = [
+	['il · lo · l’ no masculino singular', 'consoante → il; s + consoante, z, gn, ps → lo; vogal → l’'],
+	['la · l’ no feminino singular', 'vogal → l’'],
+	['i · gli · le no plural', 'il → i; lo e l’ (masc.) → gli; la e l’ (fem.) → le'],
+	['O artigo olha a palavra seguinte', 'il bravo attore, lo strano ragazzo'],
+];
+
+// banco de variações do cartão-regra "lo / gli" (seria gerado por script e revisado)
+const BANK = [
+	{ q: 'Ottavia pulisce <span class="gap"></span> specchio ogni mattina.', pt: 'Ottavia limpa o espelho toda manhã.', a: 'lo', hint: '<i>Specchio</i>: s + consoante.' },
+	{ q: 'Il conte non ama <span class="gap"></span> zii di Matteo.', pt: 'O conde não gosta dos tios de Matteo.', a: 'gli', hint: '<i>Zii</i> começa com z e está no plural.' },
+	{ q: 'Matteo cerca <span class="gap"></span> gnomo di vetro sul tavolo.', pt: 'Matteo procura o gnomo de vidro na mesa.', a: 'lo', hint: '<i>Gn</i> no começo pede o mesmo artigo de <i>z</i>.' },
+	{ q: '<span class="gap"></span> spettatori applaudono in piedi.', pt: 'Os espectadores aplaudem de pé.', a: 'gli', hint: 's + consoante, no plural.' },
+];
+
+// ───────────────────────── estado ─────────────────────────
+let view = 'trilha';
+let i = 0;            // passo atual
+let st = {};          // estado do passo
+let bankIx = 0;
+const $ = (s) => document.querySelector(s);
+const root = $('#root');
+const norm = (s) => s.normalize('NFC').replace(/[’‘ʼ`´]/g, "'").trim().replace(/\s+/g, ' ').toLowerCase();
+
+function render() {
+	if (view === 'trilha') return renderTrail();
+	if (view === 'revisao') return renderReview();
+	if (view === 'modelos') return renderModels();
+	renderStep();
+}
+
+// ───────────────────────── trilha ─────────────────────────
+function renderTrail() {
+	let h = '<div class="trail"><div>';
+	h += '<h1>Gramática</h1><p class="lead">Italiano · cada unidade é um episódio de <i>Il ritratto</i>. Pode abrir qualquer uma; a ordem é só sugestão.</p>';
+	for (const b of BLOCKS) {
+		h += `<div class="block ${b.no > 3 ? 'dim' : ''}"><div class="block-head"><small>Bloco ${b.no}</small><b>${b.title}</b></div><div class="units">`;
+		b.units.forEach(([t, ep], k) => {
+			const cur = b.no === 1 && k === 0;
+			const warn = b.no === 3 && k === 1 ? '<span class="warn">Antes: Essere e avere</span>' : '';
+			h += `<button class="unit-row ${cur ? 'cur' : ''}" data-open="${cur ? 1 : 0}"><span class="n">${k + 1}</span><span class="t"><b>${t}</b>${ep ? `<span>${ep}</span>` : ''}</span>${warn}</button>`;
+		});
+		h += '</div></div>';
+	}
+	h += '</div><aside class="side">';
+	h += `<div class="portrait"><small>O retrato · bloco 1 de 5</small><div class="frame"><div class="canvas">imagem 1 (gerada)</div></div>
+		<p>Um rapaz de vinte anos, sem papel e sem dinheiro, olha para fora do quadro como quem ainda espera alguma coisa.</p>
+		<div class="meter"><i style="width:0%"></i></div><div class="cap">0 de 6 unidades · o retrato muda quando o bloco termina</div></div>`;
+	h += `<div class="due"><b>4 regras para revisar</b><p>Os cartões de gramática entram no Revisar, misturados com as palavras.</p><button class="btn btn-soft btn-sm" data-goto="revisao">Abrir Revisar</button></div>`;
+	h += '</aside></div>';
+	root.innerHTML = h;
+	root.querySelectorAll('[data-open="1"]').forEach((b) => (b.onclick = () => go('unidade')));
+	root.querySelectorAll('[data-goto]').forEach((b) => (b.onclick = () => go(b.dataset.goto)));
+}
+
+// ───────────────────────── unidade ─────────────────────────
+function shell(inner, foot) {
+	const pct = Math.round((i / (STEPS.length - 1)) * 100);
+	root.innerHTML = `<div class="player"><div class="p-head"><button class="btn btn-ghost btn-sm" id="x">✕</button><div class="bar"><i style="width:${pct}%"></i></div><span class="lbl">Artigos definidos</span></div>
+		<div class="p-body"><div class="p-inner">${inner}</div></div>${foot}</div>`;
+	$('#x').onclick = () => go('trilha');
+}
+function foot({ label = 'Continuar', disabled = false, tone = '', msg = '', extra = '' } = {}) {
+	return `<div class="p-foot ${tone}"><span class="msg">${msg}</span>${extra}<button class="btn btn-primary" id="next" ${disabled ? 'disabled' : ''}>${label}</button></div>`;
+}
+function next() { i = Math.min(i + 1, STEPS.length - 1); st = {}; render(); }
+function bindNext() { const n = $('#next'); if (n) n.onclick = next; }
+
+function renderStep() {
+	const s = STEPS[i];
+	({ warm, episode, discover, sheet, choice, row, type, compose, end })[s.k](s);
+}
+
+function warm() {
+	shell(`<p class="kicker">Aquecimento</p><h2>Primeiro, três perguntas de unidades anteriores</h2>
+		<p class="inst">Toda unidade começa assim: 3 ou 4 itens de regras que você já viu, misturados. Esta é a primeira unidade, então ainda não há o que aquecer.</p>
+		<div class="hint">Na unidade 2 em diante, aqui apareceriam, por exemplo: <i>___ specchio</i>, <i>___ zaino</i>, <i>il pennello → ___ pennelli</i>.</div>`, foot({ label: 'Começar o episódio' }));
+	bindNext();
+}
+
+function episode() {
+	st.found ??= new Set();
+	let n = 0;
+	const html = EPISODE.map((p, pi) => {
+		if (pi === 0) return p;
+		return '<p style="margin:0 0 10px">' + p.replace(/\[([^\]]+)\]/g, (_, a) => `<span class="art ${st.found.has(n) ? 'found' : ''}" data-n="${n++}">${a}</span>`) + '</p>';
+	}).join('');
+	const total = n;
+	shell(`<p class="kicker">Descoberta · episódio</p><h2>L’atelier</h2>
+		<p class="inst">Leia a cena. Depois, toque em todos os artigos que encontrar (<i>o, a, os, as</i> em italiano).</p>
+		<div class="story">${html}${st.pt ? `<div class="pt-line">${EPISODE_PT}</div>` : ''}</div>
+		<div class="counter">${st.found.size} de ${total} artigos · <button class="btn btn-ghost btn-sm" id="pt" style="height:26px">${st.pt ? 'Ocultar' : 'Ver'} tradução</button></div>`,
+		foot({ disabled: st.found.size < total, msg: st.found.size < total ? 'Faltam alguns artigos.' : 'Seis formas diferentes para o nosso “o/a”. Por quê?' }));
+	root.querySelectorAll('.art').forEach((el) => (el.onclick = () => { st.found.add(+el.dataset.n); episode(); }));
+	$('#pt').onclick = () => { st.pt = !st.pt; episode(); };
+	bindNext();
+}
+
+function discover(s) {
+	const opts = s.opts.map(([t, ok], k) => `<button class="opt ${st.pick === k ? (ok ? 'right' : 'wrong') : ''}" data-k="${k}">${t}</button>`).join('');
+	const picked = st.pick != null ? s.opts[st.pick] : null;
+	shell(`<p class="kicker">Descoberta · sua hipótese</p><h2>${s.q}</h2><div class="opts">${opts}</div>`,
+		foot({ disabled: !picked?.[1], tone: picked ? (picked[1] ? 'ok' : 'bad') : '', msg: picked ? picked[2] : 'Arrisque um palpite.' }));
+	root.querySelectorAll('.opt').forEach((b) => (b.onclick = () => { st.pick = +b.dataset.k; discover(s); }));
+	bindNext();
+}
+
+function sheet() {
+	shell(`<p class="kicker">Ficha</p><h2>O artigo definido olha para o som seguinte</h2>
+		<div class="sheet"><table class="tbl">
+			<tr><th></th><th>Antes de…</th><th>Singular</th><th>Plural</th><th>Exemplo</th></tr>
+			<tr><td rowspan="3" style="color:var(--ink-3);font-size:13px">masc.</td><td>consoante</td><td class="f">il</td><td class="f">i</td><td class="ex">il quadro → i quadri</td></tr>
+			<tr><td>s + consoante, z, gn, ps</td><td class="f">lo</td><td class="f">gli</td><td class="ex">lo specchio → gli specchi</td></tr>
+			<tr><td>vogal</td><td class="f">l’</td><td class="f">gli</td><td class="ex">l’occhio → gli occhi</td></tr>
+			<tr><td rowspan="2" style="color:var(--ink-3);font-size:13px">fem.</td><td>consoante</td><td class="f">la</td><td class="f">le</td><td class="ex">la porta → le porte</td></tr>
+			<tr><td>vogal</td><td class="f">l’</td><td class="f">le</td><td class="ex">l’arte → le arti</td></tr>
+		</table>
+		<div class="pt-box"><b>Em português</b>Nosso artigo só muda com gênero e número: <i>o, a, os, as</i>. Em italiano muda também com a <b>primeira letra da palavra seguinte</b>. Se ela muda, o artigo muda: <i>lo studente</i>, mas <i>il bravo studente</i>.</div>
+		<div class="trap"><b>Armadilha de brasileiro</b><i>Il zaino</i>, <i>i studenti</i>, <i>i occhi</i> soam naturais para nós e estão errados. E o gênero nem sempre bate: <i>il colore</i>, <i>il fiore</i>, <i>il latte</i> são masculinos.</div>
+		</div>`, foot());
+	bindNext();
+}
+
+function choice(s) {
+	const opts = s.opts.map(([t, ok], k) => `<button class="opt ${st.pick === k ? (ok ? 'right' : 'wrong') : st.done && ok ? 'right' : ''}" data-k="${k}">${t}</button>`).join('');
+	const picked = st.pick != null ? s.opts[st.pick] : null;
+	shell(`<p class="kicker">${s.kind}</p><div class="prompt">${s.q}<small>${s.sub}</small></div><div class="opts">${opts}</div>`,
+		foot({ disabled: !picked, tone: picked ? (picked[1] ? 'ok' : 'bad') : '', msg: picked ? s.why : '' }));
+	root.querySelectorAll('.opt').forEach((b) => (b.onclick = () => { if (st.pick == null) { st.pick = +b.dataset.k; st.done = true; choice(s); } }));
+	bindNext();
+}
+
+// Escolha com pista: o primeiro erro dá uma pista e outra chance; o segundo mostra a resposta.
+function row(s) {
+	st.wrong ??= [];
+	const state = st.state ?? 'ask';
+	const opts = s.opts.map((o) => {
+		let c = '';
+		if (st.wrong.includes(o)) c = 'wrong';
+		if ((state === 'right' && st.last === o) || (state === 'shown' && o === s.a)) c = 'right';
+		return `<button class="opt ${c}" data-o="${o}">${o}</button>`;
+	}).join('');
+	const hint = state === 'hint' ? `<div class="hint"><b>Pista.</b> ${s.hints[st.last] ?? 'Olhe a primeira letra da palavra seguinte.'} Tente de novo.</div>` : '';
+	const prompt = state === 'right' || state === 'shown' ? s.q.replace('<span class="gap"></span>', `<u>${s.a}</u>`) : s.q;
+	shell(`<p class="kicker">Escolha o artigo</p><div class="prompt">${prompt}<small>${s.sub}</small></div><div class="opts row">${opts}</div>${hint}`,
+		foot({ disabled: !(state === 'right' || state === 'shown'), tone: state === 'right' ? 'ok' : state === 'shown' ? 'bad' : '', msg: state === 'right' ? (st.wrong.length ? 'Certo, na segunda tentativa.' : 'Certo.') : state === 'shown' ? `Resposta: <i>${s.a}</i>. Essa regra volta logo na revisão.` : '' }));
+	root.querySelectorAll('.opt').forEach((b) => (b.onclick = () => {
+		if (state === 'right' || state === 'shown') return;
+		const o = b.dataset.o;
+		st.last = o;
+		if (o === s.a) st.state = 'right';
+		else { st.wrong.push(o); st.state = st.wrong.length >= 2 ? 'shown' : 'hint'; }
+		row(s);
+	}));
+	bindNext();
+}
+
+function type(s) {
+	const state = st.state ?? 'ask';
+	const solved = state === 'right' || state === 'shown';
+	const prompt = solved ? s.q.replace('<span class="gap"></span>', `<u>${s.a[0]}</u>`) : s.q;
+	const hint = state === 'hint' ? `<div class="hint"><b>Pista.</b> ${s.hints[norm(st.last)] ?? 'Olhe a primeira letra da palavra seguinte.'} Tente de novo.</div>` : '';
+	shell(`<p class="kicker">Complete</p><div class="prompt">${prompt}<small>${s.sub}</small></div>
+		<input class="field" id="in" placeholder="Digite o artigo" autocomplete="off" ${solved ? 'disabled' : ''} value="${solved ? st.last ?? '' : ''}">${hint}`,
+		foot({ label: solved ? 'Continuar' : 'Conferir', tone: state === 'right' ? 'ok' : state === 'shown' ? 'bad' : '', msg: state === 'right' ? 'Certo.' : state === 'shown' ? `Resposta: <i>${s.a[0]}</i>.` : '' }));
+	const inp = $('#in');
+	if (!solved) inp.focus();
+	const check = () => {
+		if (solved) return next();
+		const v = inp.value; if (!v.trim()) return;
+		st.last = v;
+		if (s.a.some((a) => norm(a) === norm(v))) st.state = 'right';
+		else st.state = state === 'hint' ? 'shown' : 'hint';
+		type(s);
+	};
+	inp.onkeydown = (e) => e.key === 'Enter' && check();
+	$('#next').onclick = check;
+}
+
+// Montar frase a partir do PT. No app, a IA julga; aqui um juiz falso cobre os erros típicos.
+function judge(v) {
+	const t = norm(v).replace(/[.!]$/, '');
+	const ok = /^i quadri e i colori sono (sopra|sul) (il )?tavolo$/.test(t) && !/sopra tavolo/.test(t);
+	if (ok) return { ok: true, msg: t.includes('sul') ? 'Certo. <i>Sul</i> (= <i>su + il</i>) também vale; você vai ver isso no bloco 2.' : 'Certo.' };
+	if (/le colori/.test(t)) return { hint: '<i>Colore</i> é <b>masculino</b> em italiano, ao contrário de “cor”. Qual é o plural masculino de <i>il</i>?' };
+	if (/gli quadri|lo quadr/.test(t)) return { hint: '<i>Quadro</i> começa com consoante simples: <i>il quadro</i>, no plural…' };
+	if (/sopra tavolo|sopra la tavol/.test(t)) return { hint: 'Faltou o artigo antes de <i>tavolo</i> (masculino, consoante).' };
+	if (/sono|stanno/.test(t) && /quadri/.test(t)) return { hint: 'Quase. Confira o artigo de cada substantivo: <i>quadri</i>, <i>colori</i>, <i>tavolo</i>.' };
+	return { hint: 'Comece por <i>I quadri…</i> e use <i>sono</i> para “estão”.' };
+}
+function compose(s) {
+	const state = st.state ?? 'ask';
+	const solved = state === 'right' || state === 'shown';
+	const hint = state === 'hint' ? `<div class="hint"><b>Pista.</b> ${st.hint}</div>` : '';
+	shell(`<p class="kicker">Monte a frase</p><h2>Diga em italiano</h2><div class="prompt" style="text-align:left;font-size:22px">${s.pt}</div>
+		<textarea class="field" id="in" placeholder="Escreva em italiano" ${solved ? 'disabled' : ''}>${st.last ?? ''}</textarea>
+		<div class="chips">${s.chips.map((c) => `<span class="chip">${c}</span>`).join('')}</div>
+		<div class="ai-note">No app, uma IA corrige a frase e dá a pista. Aqui o protótipo simula. Tente “Le colori…” para ver a pista.</div>${hint}`,
+		foot({ label: solved ? 'Continuar' : 'Conferir', tone: state === 'right' ? 'ok' : state === 'shown' ? 'bad' : '', msg: state === 'right' ? st.msg : state === 'shown' ? 'Uma resposta possível: <i>I quadri e i colori sono sopra il tavolo.</i>' : '' }));
+	const inp = $('#in');
+	if (!solved) { inp.focus(); inp.setSelectionRange(inp.value.length, inp.value.length); }
+	$('#next').onclick = () => {
+		if (solved) return next();
+		const v = inp.value; if (!v.trim()) return;
+		st.last = v;
+		const r = judge(v);
+		if (r.ok) { st.state = 'right'; st.msg = r.msg; }
+		else if (state === 'hint' && st.tries >= 2) st.state = 'shown';
+		else { st.state = 'hint'; st.hint = r.hint; st.tries = (st.tries ?? 0) + 1; }
+		compose(s);
+	};
+}
+
+function end() {
+	shell(`<div class="end"><div class="frame portrait-mini"><div class="canvas"></div></div>
+		<p class="kicker">Episódio 1 concluído</p><h2>Quatro regras foram para o baralho Gramática</h2>
+		<div class="rules">${RULES.map(([t, d]) => `<div class="rule"><span class="dot"></span><div><b>${t}</b><span>${d}</span></div></div>`).join('')}</div>
+		<p class="inst">Esta unidade contou como o primeiro estudo. A primeira revisão vem <b>amanhã</b>, com frases que você ainda não viu.</p>
+		<p class="tease">Naquela noite, Matteo não dorme. De manhã, no espelho da avó, o rosto dele parece… igual. Igual demais.</p></div>`,
+		foot({ label: 'Voltar à trilha' }));
+	$('#next').onclick = () => { i = 0; st = {}; go('trilha'); };
+}
+
+// ───────────────────────── cartão-regra no Revisar ─────────────────────────
+function renderReview() {
+	const it = BANK[bankIx % BANK.length];
+	const state = st.state ?? 'ask';
+	const solved = state === 'right' || state === 'shown';
+	const q = solved ? it.q.replace('<span class="gap"></span>', `<u>${it.a}</u>`) : it.q;
+	root.innerHTML = `<div class="rev"><div class="rev-card">
+		<span class="tagl">Gramática · lo / gli: s + consoante, z, gn, ps</span>
+		<div class="prompt" style="text-align:left;font-size:22px">${q}<small style="text-align:left">${it.pt}</small></div>
+		<input class="field" id="in" placeholder="Artigo" autocomplete="off" ${solved ? 'disabled' : ''} value="${solved ? st.last : ''}">
+		${state === 'hint' ? `<div class="hint"><b>Pista.</b> ${it.hint} Tente de novo.</div>` : ''}
+		${solved ? `<div class="reveal">${state === 'right' ? (st.tries ? 'Certo, depois da pista.' : 'Certo.') : `Resposta: <i>${it.a}</i>.`}</div>
+		<div class="grades"><button class="btn btn-soft">Errei<small>10 min</small></button><button class="btn btn-soft">Difícil<small>${st.tries ? '1 d' : '2 d'}</small></button><button class="btn btn-soft">Bom<small>4 d</small></button><button class="btn btn-soft">Fácil<small>9 d</small></button></div>` :
+		`<div style="display:flex;justify-content:flex-end;margin-top:14px"><button class="btn btn-primary" id="chk">Conferir</button></div>`}
+	</div><p class="note">Um cartão por regra. A cada revisão a frase muda (banco revisado, ${BANK.length} de ~25 neste protótipo).${solved ? ' Escolha uma nota para ver a próxima frase da mesma regra.' : ''}</p></div>`;
+	const inp = $('#in');
+	if (!solved) {
+		inp.focus();
+		const check = () => {
+			const v = inp.value; if (!v.trim()) return;
+			st.last = v;
+			if (norm(v) === it.a) st.state = 'right';
+			else if (state === 'hint') st.state = 'shown';
+			else { st.state = 'hint'; st.tries = 1; }
+			renderReview();
+		};
+		inp.onkeydown = (e) => e.key === 'Enter' && check();
+		$('#chk').onclick = check;
+	} else {
+		root.querySelectorAll('.grades .btn').forEach((b) => (b.onclick = () => { bankIx++; st = {}; renderReview(); }));
+	}
+}
+
+
+// ───────────────────────── modelos de cartão ─────────────────────────
+// Um cartão por regra; cada regra diz quais modelos aceita e cada revisão sorteia modelo + frase do banco.
+const MODELS = [
+	['Lacuna', 'Digita a palavra que falta. Padrão de quase toda regra.',
+		'Ottavia pulisce <u>&nbsp;&nbsp;&nbsp;&nbsp;</u> specchio.<div class="sub">Ottavia limpa o espelho.</div><div class="in"></div>',
+		'<span class="ok">lo</span> specchio<div class="sub">s + consoante → lo</div>'],
+	['Escolha', 'Formas fechadas (artigos, preposições, auxiliar).',
+		'<u>&nbsp;&nbsp;&nbsp;&nbsp;</u> zaino<div class="ops"><span>il</span><span>lo</span><span>l’</span><span>la</span></div>',
+		'<span class="ok">lo</span> zaino<div class="sub">z → lo</div>'],
+	['Transformar', 'Muda uma coisa: número, pessoa, tempo.',
+		'il pennello → plural<div class="in"></div>',
+		'<span class="ok">i</span> pennelli<div class="sub">il → i</div>'],
+	['Corrigir', 'Erro típico de brasileiro para achar e consertar.',
+		'Matteo apre <i>il</i> zaino.<div class="sub">Há um erro. Qual?</div><div class="in"></div>',
+		'Matteo apre <span class="ok">lo</span> zaino.<div class="sub">z pede lo</div>'],
+	['Dizer em italiano', 'Frase curta do PT; a IA julga. Só em regras já firmes.',
+		'Os estudantes esperam o conde.<div class="in"></div>',
+		'<span class="ok">Gli studenti aspettano il conte.</span><div class="sub">studente: s + consoante → gli no plural</div>'],
+];
+function renderModels() {
+	root.innerHTML = `<div class="models"><h1>Modelos de cartão</h1>
+		<p class="lead">Errou: pista e outra chance, depois o verso. Notas: Errei, Difícil, Bom, Fácil.</p>
+		${MODELS.map(([n, d, f, b]) => `<div class="model"><div class="meta"><b>${n}</b><span>${d}</span></div>
+			<div class="face"><small>Frente</small>${f}</div><div class="face"><small>Verso</small>${b}</div></div>`).join('')}</div>`;
+}
+
+// ───────────────────────── controles ─────────────────────────
+function go(v) {
+	view = v; st = {};
+	document.querySelectorAll('#views button').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.v === v)));
+	render();
+}
+document.querySelectorAll('#views button').forEach((b) => (b.onclick = () => { if (b.dataset.v === 'unidade') { i = 0; } go(b.dataset.v); }));
+document.querySelectorAll('#tema button').forEach((b) => (b.onclick = () => {
+	document.documentElement.className = b.dataset.t;
+	document.querySelectorAll('#tema button').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+}));
+render();
+</script>
+</body>
+</html>
