@@ -82,7 +82,7 @@ export async function listDecks(
 	return data.map((r) => toDeck(r, dayKey));
 }
 
-/** Deck padrão do idioma ("Minhas palavras"); o banco cria se faltar. */
+/** Deck padrão do idioma (DEFAULT_DECK_NAME, "Geral"); o banco cria se faltar. */
 export async function defaultDeckId(supabase: Client, language: Language): Promise<string> {
 	const { data, error } = await supabase.rpc('default_deck', { p_language: language });
 	if (error || !data) throw new Error(`default_deck: ${error?.message ?? 'vazio'}`);

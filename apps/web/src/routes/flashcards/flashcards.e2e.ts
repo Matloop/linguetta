@@ -284,7 +284,7 @@ test('baralhos: renomear na engrenagem, barra lateral e trocar o baralho no pain
 	// Trocar o baralho da palavra direto no painel.
 	await page.goto('/palavras');
 	await page.getByRole('list', { name: 'Palavras' }).getByRole('link', { name: 'maybe' }).click();
-	await page.getByRole('button', { name: /^Baralho: Minhas palavras\. Trocar baralho/ }).click();
+	await page.getByRole('button', { name: /^Baralho: Geral\. Trocar baralho/ }).click();
 	await page.getByRole('option', { name: 'Férias' }).click();
 	await expect(page.getByText('“maybe” movida para Férias')).toBeVisible();
 	await expect(page.getByRole('button', { name: /^Baralho: Férias\. Trocar baralho/ })).toBeVisible();

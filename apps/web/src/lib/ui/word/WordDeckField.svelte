@@ -1,10 +1,11 @@
 <!--
 	Deck da palavra: linha "Deck" com o nome atual e um DeckPicker num popover.
-	Modo "form": input escondido `deck` (vazio = o padrão do idioma, "Minhas palavras").
+	Modo "form": input escondido `deck` (vazio = o padrão do idioma, DEFAULT_DECK_NAME).
 	Modo "inline": escolher move na hora pelo ?/move de /palavras (aceita "Novo deck…").
 		<WordDeckField mode="inline" decks={data.decks} item={selected} />
 -->
 <script lang="ts">
+	import { DEFAULT_DECK_NAME } from '#lib/decks.ts';
 	import { deckDisplayName } from '#lib/decks-ui.ts';
 	import type { DeckOption, EditableItem } from '#lib/word-fields.ts';
 	import Icon from '../Icon.svelte';
@@ -45,7 +46,7 @@
 	const fallback = $derived(decks.find((d) => d.isDefault) ?? null);
 	const current = $derived(decks.find((d) => d.id === picked) ?? fallback);
 	const name = $derived(
-		current ? deckDisplayName(current.name) : loading ? 'Carregando…' : 'Minhas palavras'
+		current ? deckDisplayName(current.name) : loading ? 'Carregando…' : DEFAULT_DECK_NAME
 	);
 
 	async function pick(choice: { deckId: string } | { newName: string }, close: () => void) {

@@ -67,6 +67,7 @@
 	import { resolve } from '$app/paths';
 	import { goto } from '$app/navigation';
 	import { playWord } from '#lib/audio.ts';
+	import { DEFAULT_DECK_NAME } from '#lib/decks.ts';
 	import { deckDisplayName, plural } from '#lib/decks-ui.ts';
 	import type { Language, UiLanguage } from '#lib/languages.ts';
 	import {
@@ -526,14 +527,14 @@
 						<button
 							type="button"
 							class="aside deck-btn"
-							aria-label="Baralho: {deck ? deckDisplayName(deck.name) : 'Minhas palavras'}. Trocar baralho"
+							aria-label="Baralho: {deck ? deckDisplayName(deck.name) : DEFAULT_DECK_NAME}. Trocar baralho"
 							aria-haspopup="dialog"
 							aria-expanded={expanded}
 							aria-controls={id}
 							onclick={toggle}
 							><Icon name="cards" size="sm" />{deck
 								? deckDisplayName(deck.name)
-								: 'Minhas palavras'}<Icon name="down" size="sm" /></button
+								: DEFAULT_DECK_NAME}<Icon name="down" size="sm" /></button
 						>
 					{/snippet}
 					<DeckPicker

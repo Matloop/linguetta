@@ -10,7 +10,7 @@ export type NewOrder = (typeof NEW_ORDERS)[number];
 export const LEECH_ACTIONS = ['wait', 'tag', 'suspend'] as const;
 export type LeechAction = (typeof LEECH_ACTIONS)[number];
 
-export const DEFAULT_DECK_NAME = 'Minhas palavras';
+export const DEFAULT_DECK_NAME = 'Geral';
 export const DEFAULT_LEECH_LAPSES = 8;
 /** Padrões do Geral (user_settings), como no Anki. */
 export const DEFAULT_NEW_PER_DAY = 20;

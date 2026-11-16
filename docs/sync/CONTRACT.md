@@ -194,7 +194,7 @@ No servidor:
 - O encontro grava `form`, `sentence`, `highlight = form`, `sense`, `position`, `origin = "ereader"`, `seen_at = min(at, agora)` e `client_id = clientId`.
 - A obra é achada por `kind = "livro"` + `koHash` (ref_key `kosync:<hash>`), ou criada. Título e autor (`subtitle`) mais novos vencem, como no resto do app.
 - O app mostra a origem como "O nome da rosa · Primeiro dia · 12%".
-- Item criado pelo `save` cai no deck padrão do idioma ("Minhas palavras"). Item que já existe fica no deck dele. Um encontro novo com frase tira o item da espera de teimosa (`leechWaiting` volta a `false` no próximo snapshot).
+- Item criado pelo `save` cai no deck padrão do idioma ("Geral"). Item que já existe fica no deck dele. Um encontro novo com frase tira o item da espera de teimosa (`leechWaiting` volta a `false` no próximo snapshot).
 - Textos acima do limite são cortados no servidor; `lemma` vazio ou com mais de 80 code points recusa a operação (`rejected`, `invalid`). O aparelho já **deve** cortar antes de gravar no outbox.
 
 ### `review`: revisão de um flashcard
