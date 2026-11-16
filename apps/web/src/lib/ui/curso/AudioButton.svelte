@@ -1,10 +1,33 @@
-<!-- Botão de áudio do curso. Por enquanto só a forma: o áudio das lições ainda não existe. -->
+<!-- Botão de áudio do curso: toca o arquivo de `src`; tocar outro (ou o mesmo) interrompe o atual. -->
+<script lang="ts" module>
+	let current: HTMLAudioElement | null = null;
+</script>
+
 <script lang="ts">
 	import Icon from '#lib/ui/Icon.svelte';
 	import { toast } from '#lib/ui/app-state.svelte.ts';
 
-	let { size = 'round', label = 'Ouvir' }: { size?: 'round' | 'big' | 'mini'; label?: string } =
-		$props();
+	let {
+		src,
+		size = 'round',
+		label = 'Ouvir'
+	}: { src: string; size?: 'round' | 'big' | 'mini'; label?: string } = $props();
+
+	function play() {
+		const same = current?.getAttribute('src') === src && !current.paused;
+		current?.pause();
+		current = null;
+		if (same) return;
+		const audio = new Audio(src);
+		current = audio;
+		audio.addEventListener('ended', () => {
+			if (current === audio) current = null;
+		});
+		audio.play().catch(() => {
+			if (current === audio) current = null;
+			toast('Não foi possível tocar o áudio');
+		});
+	}
 </script>
 
 <button
@@ -14,7 +37,7 @@
 	title={label}
 	onclick={(e) => {
 		e.stopPropagation();
-		toast('O áudio das lições chega em breve');
+		play();
 	}}><Icon name="play" /></button
 >
 
