@@ -5,7 +5,8 @@ import {
 	limitsAction,
 	nestAction,
 	pauseAction,
-	renameAction
+	renameAction,
+	iconAction
 } from '#lib/server/deck-actions.ts';
 import { flashcardCount, tomorrowReviews } from '#lib/server/session.ts';
 import { loadTags, nextDueText } from '#lib/server/summary.ts';
@@ -35,6 +36,7 @@ export const load: PageServerLoad = async ({ locals, parent }) => {
 export const actions: Actions = {
 	create: createAction,
 	rename: renameAction,
+	icon: iconAction,
 	pause: pauseAction,
 	nest: nestAction,
 	limits: limitsAction

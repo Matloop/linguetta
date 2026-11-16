@@ -9,6 +9,7 @@ import {
 	isPausedIn,
 	newAllowance,
 	parseLeechAction,
+	parseDeckIcon,
 	parseNewOrder,
 	quotaLeft,
 	takeWithin,
@@ -97,6 +98,7 @@ function toDeck(r: Raw, language: string): Deck {
 		newPerDayToday: numOrNull(r.newPerDayToday),
 		reviewsPerDayToday: numOrNull(r.reviewsPerDayToday),
 		onReader: r.onReader !== false,
+		icon: parseDeckIcon(r.icon),
 		position: num(r.position),
 		createdAt: String(r.createdAt ?? '')
 	};

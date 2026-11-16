@@ -2,7 +2,7 @@
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
-	import { isPausedIn, NEW_ORDERS, type NewOrder } from '#lib/decks.ts';
+	import { DECK_ICONS, isPausedIn, NEW_ORDERS, type DeckIcon, type NewOrder } from '#lib/decks.ts';
 	import {
 		DECK_NAME_UI_MAX,
 		deckDisplayName,
@@ -116,25 +116,28 @@
 	// ---------- Opções ----------
 	let optsOpen = $state(false);
 	let renameName = $state('');
-	let renameError = $state('');
+	let iconValue = $state<DeckIcon | null>(null);
+	let wasOpen = false;
 	$effect(() => {
 		if (optsOpen) {
 			renameName = deck.name;
-			renameError = '';
-		}
+			iconValue = deck.icon;
+		} else if (wasOpen) void commitIdentity();
+		wasOpen = optsOpen;
 	});
 
-	async function rename(e: SubmitEvent) {
-		e.preventDefault();
-		if (busy || !renameName.trim() || renameName.trim() === deck.name) return;
-		busy = true;
-		const r = await postAction('rename', { id: deck.id, name: renameName });
-		busy = false;
-		if (!r.ok) {
-			renameError = r.message;
-			return;
+	/** Nome e ícone valem ao fechar as opções. */
+	async function commitIdentity() {
+		const nameNew = renameName.trim();
+		if (nameNew && nameNew !== deck.name) {
+			const r = await postAction('rename', { id: deck.id, name: nameNew });
+			if (!r.ok) return toast(r.message);
+			toast('Baralho renomeado');
 		}
-		toast('Baralho renomeado');
+		if (iconValue !== deck.icon) {
+			const r = await postAction('icon', { id: deck.id, icon: iconValue ?? '' });
+			if (!r.ok) return toast(r.message);
+		}
 	}
 
 	const setOrder = (o: NewOrder) =>
@@ -216,26 +219,40 @@
 			{/snippet}
 			{#snippet children({ close })}
 				<div class="opts">
-					<form class="opt" onsubmit={rename}>
+					<div class="opt">
 						<label for="deck-nome">Nome</label>
-						<div class="inline">
-							<input
-								id="deck-nome"
-								class="input"
-								maxlength={DECK_NAME_UI_MAX}
-								autocomplete="off"
-								aria-invalid={renameError ? 'true' : undefined}
-								bind:value={renameName}
-								oninput={() => (renameError = '')}
-							/>
+						<input
+							id="deck-nome"
+							class="input"
+							maxlength={DECK_NAME_UI_MAX}
+							autocomplete="off"
+							bind:value={renameName}
+						/>
+					</div>
+
+					<div class="opt">
+						<span class="lbl" id="icone-lbl">Ícone</span>
+						<div class="ics" role="group" aria-labelledby="icone-lbl">
 							<button
-								class="btn btn-soft"
-								disabled={busy || !renameName.trim() || renameName.trim() === deck.name}
-								>Renomear</button
+								type="button"
+								class="ic-opt"
+								aria-pressed={iconValue === null}
+								aria-label="Sem ícone"
+								title="Sem ícone"
+								onclick={() => (iconValue = null)}><Icon name="x" size="sm" /></button
 							>
+							{#each DECK_ICONS as i (i)}
+								<button
+									type="button"
+									class="ic-opt"
+									aria-pressed={iconValue === i}
+									aria-label="Ícone {i}"
+									title={i}
+									onclick={() => (iconValue = i)}><Icon name={i} size="sm" /></button
+								>
+							{/each}
 						</div>
-						{#if renameError}<p class="err" role="alert">{renameError}</p>{/if}
-					</form>
+					</div>
 
 					<div class="opt">
 						<span class="lbl" id="ordem-lbl">Ordem das novas</span>
@@ -540,21 +557,12 @@
 		font-size: 13.5px;
 		color: var(--ink-3);
 	}
-	.inline {
-		display: flex;
-		gap: 6px;
-	}
 	.opt .seg {
 		display: flex;
 	}
 	.opt .seg > button {
 		flex: 1;
 		padding: 0 8px;
-		font-size: 13.5px;
-	}
-	.err {
-		margin: 0;
-		color: var(--terra-ink);
 		font-size: 13.5px;
 	}
 	.toggles {
@@ -872,5 +880,29 @@
 		.d-acts .btn {
 			flex: 1;
 		}
+	}
+	.ics {
+		display: grid;
+		grid-template-columns: repeat(auto-fill, minmax(34px, 1fr));
+		gap: 4px;
+	}
+	.ic-opt {
+		display: grid;
+		place-items: center;
+		height: 34px;
+		border: 0;
+		border-radius: var(--r-m);
+		background: transparent;
+		color: var(--ink-3);
+		cursor: pointer;
+	}
+	.ic-opt:hover {
+		background: var(--hover);
+		color: var(--ink);
+	}
+	.ic-opt[aria-pressed='true'] {
+		background: var(--sel);
+		color: var(--ink);
+		box-shadow: inset 0 0 0 1.5px var(--ring);
 	}
 </style>

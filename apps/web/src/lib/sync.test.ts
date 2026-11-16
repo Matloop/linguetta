@@ -206,6 +206,7 @@ function fixtureHeader(serverNow: Date): HeaderInput {
 		newPerDayToday: null,
 		reviewsPerDayToday: null,
 		onReader: true,
+		icon: null,
 		position: 0,
 		createdAt: '2026-10-01T00:00:00.000Z',
 		...over

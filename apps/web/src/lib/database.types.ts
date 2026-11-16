@@ -284,6 +284,7 @@ export type Database = {
           id: string
           import_hash: string | null
           is_default: boolean
+          icon: string | null
           language: string
           limits_day: string | null
           name: string
@@ -322,6 +323,7 @@ export type Database = {
           id?: string
           import_hash?: string | null
           is_default?: boolean
+          icon?: string | null
           language?: string
           limits_day?: string | null
           name?: string

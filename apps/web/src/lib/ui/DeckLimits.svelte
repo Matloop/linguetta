@@ -5,7 +5,14 @@
 	mudou, a `rename` antes (id, name).
 -->
 <script lang="ts">
-	import { DECK_LIMITS, LIMIT_MODES, type DeckLimitsView, type LimitMode } from '#lib/decks.ts';
+	import {
+		DECK_ICONS,
+		DECK_LIMITS,
+		LIMIT_MODES,
+		type DeckIcon,
+		type DeckLimitsView,
+		type LimitMode
+	} from '#lib/decks.ts';
 	import { DECK_NAME_UI_MAX, deckDisplayName, LIMIT_MODE_LABEL } from '#lib/decks-ui.ts';
 	import Icon from './Icon.svelte';
 	import Popover from './Popover.svelte';
@@ -17,7 +24,7 @@
 		action = 'limits',
 		rename = false
 	}: {
-		deck: { id: string; name: string; limits: DeckLimitsView };
+		deck: { id: string; name: string; icon?: DeckIcon | null; limits: DeckLimitsView };
 		action?: string;
 		/** Mostra o campo Nome (posta a action `rename`). */
 		rename?: boolean;
@@ -30,12 +37,14 @@
 	let fresh = $state<Field>({ value: '', mode: 'geral' });
 	let reviews = $state<Field>({ value: '', mode: 'geral' });
 	let nameValue = $state('');
+	let iconValue = $state<DeckIcon | null>(null);
 
 	$effect(() => {
 		if (!open) return;
 		fresh = { value: String(deck.limits.new.value), mode: deck.limits.new.mode };
 		reviews = { value: String(deck.limits.reviews.value), mode: deck.limits.reviews.mode };
 		nameValue = deck.name;
+		iconValue = deck.icon ?? null;
 		error = '';
 	});
 
@@ -48,6 +57,7 @@
 	const name = $derived(deckDisplayName(deck.name));
 	const valid = (f: Field, max: number) => /^\d+$/.test(f.value) && Number(f.value) <= max;
 	const renamed = $derived(rename && nameValue.trim() !== deck.name);
+	const iconChanged = $derived(rename && iconValue !== (deck.icon ?? null));
 	const ok = $derived(
 		valid(fresh, DECK_LIMITS.newPerDay) &&
 			valid(reviews, DECK_LIMITS.reviewsPerDay) &&
@@ -58,8 +68,13 @@
 		e.preventDefault();
 		if (busy || !ok) return;
 		busy = true;
-		const didRename = renamed;
-		if (didRename) {
+		// Cada postAction recarrega a página e o $effect acima reabre os campos: lê tudo antes.
+		const doRename = renamed;
+		const doIcon = iconChanged;
+		const icon = iconValue;
+		const [newField, reviewsField] = [fresh, reviews];
+		const didRename = doRename || doIcon;
+		if (doRename) {
 			const n = await postAction('rename', { id: deck.id, name: nameValue });
 			if (!n.ok) {
 				busy = false;
@@ -67,12 +82,20 @@
 				return;
 			}
 		}
+		if (doIcon) {
+			const i = await postAction('icon', { id: deck.id, icon: icon ?? '' });
+			if (!i.ok) {
+				busy = false;
+				error = i.message;
+				return;
+			}
+		}
 		const r = await postAction(action, {
 			id: deck.id,
-			newMode: fresh.mode,
-			new: fresh.value,
-			reviewsMode: reviews.mode,
-			reviews: reviews.value
+			newMode: newField.mode,
+			new: newField.value,
+			reviewsMode: reviewsField.mode,
+			reviews: reviewsField.value
 		});
 		busy = false;
 		if (!r.ok) {
@@ -150,6 +173,26 @@
 						oninput={() => (error = '')}
 					/>
 				</div>
+				<div class="ics" role="group" aria-label="Ícone do baralho">
+					<button
+						type="button"
+						class="ic-opt none"
+						aria-pressed={iconValue === null}
+						title="Sem ícone"
+						aria-label="Sem ícone"
+						onclick={() => (iconValue = null)}><Icon name="x" size="sm" /></button
+					>
+					{#each DECK_ICONS as i (i)}
+						<button
+							type="button"
+							class="ic-opt"
+							aria-pressed={iconValue === i}
+							title={i}
+							aria-label="Ícone {i}"
+							onclick={() => (iconValue = i)}><Icon name={i} size="sm" /></button
+						>
+					{/each}
+				</div>
 			{/if}
 			<p class="ttl">Limites diários</p>
 			{@render field(fresh, 'new', 'Novas por dia', DECK_LIMITS.newPerDay, (f) => (fresh = f))}
@@ -189,12 +232,37 @@
 	.nm {
 		display: grid;
 		gap: 6px;
-		padding-bottom: 14px;
-		border-bottom: 1px solid var(--line);
 	}
 	.nm label {
 		font-size: 14.5px;
 		color: var(--ink-2);
+	}
+	.ics {
+		display: grid;
+		grid-template-columns: repeat(auto-fill, minmax(34px, 1fr));
+		gap: 4px;
+		margin-top: -4px;
+		padding-bottom: 14px;
+		border-bottom: 1px solid var(--line);
+	}
+	.ic-opt {
+		display: grid;
+		place-items: center;
+		height: 34px;
+		border: 0;
+		border-radius: var(--r-m);
+		background: transparent;
+		color: var(--ink-3);
+		cursor: pointer;
+	}
+	.ic-opt:hover {
+		background: var(--hover);
+		color: var(--ink);
+	}
+	.ic-opt[aria-pressed='true'] {
+		background: var(--sel);
+		color: var(--ink);
+		box-shadow: inset 0 0 0 1.5px var(--ring);
 	}
 	.ttl {
 		margin: 0;

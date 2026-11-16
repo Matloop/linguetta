@@ -215,7 +215,10 @@
 										? 'page'
 										: undefined}
 									title={deckDisplayName(d.name)}
-									><span class="sub-name">{deckDisplayName(d.name)}</span>{#if d.forToday > 0}<span
+									
+									>{#if d.icon}<Icon name={d.icon} size="sm" />{/if}<span class="sub-name"
+										>{deckDisplayName(d.name)}</span
+									>{#if d.forToday > 0}<span
 											class="sub-n"
 											>{d.forToday}<span class="visually-hidden">&nbsp;para hoje</span></span
 										>{/if}</a

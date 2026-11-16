@@ -11,6 +11,7 @@ import {
 	pauseAction,
 	releaseAction,
 	renameAction,
+	iconAction,
 	setDefaultAction
 } from '#lib/server/deck-actions.ts';
 import { planNew, scopeDeckIds } from '#lib/server/queue.ts';
@@ -140,6 +141,7 @@ export const load: PageServerLoad = async ({ locals, params, parent }) => {
 export const actions: Actions = {
 	options: optionsAction,
 	rename: renameAction,
+	icon: iconAction,
 	setDefault: setDefaultAction,
 	delete: deleteAction,
 	move: moveAction,

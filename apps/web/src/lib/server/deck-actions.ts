@@ -4,7 +4,7 @@
 
 import { error, fail, type RequestEvent } from '@sveltejs/kit';
 import { DECK_NAME_UI_MAX } from '#lib/decks-ui.ts';
-import { deckErrorMessage, parseLimitMode, parseNewOrder } from '#lib/decks.ts';
+import { deckErrorMessage, parseDeckIcon, parseLimitMode, parseNewOrder } from '#lib/decks.ts';
 import { LANGUAGE_COOKIE, resolveActiveLanguage } from '#lib/prefs.ts';
 import {
 	addExtraNew,
@@ -14,6 +14,7 @@ import {
 	moveToDeck,
 	releaseLeeches,
 	renameDeck,
+	setDeckIcon,
 	setDeckLimits,
 	setDeckOptions,
 	setDeckPaused,
@@ -64,6 +65,18 @@ export async function renameAction(event: Event) {
 	const res = await renameDeck(event.locals.supabase, id, name);
 	if (!res.ok) return fail(400, { op: 'rename', name, message: res.message });
 	return { op: 'rename' as const, name };
+}
+
+/** Ícone do baralho; vazio tira o ícone. */
+export async function iconAction(event: Event) {
+	const { form } = await context(event);
+	const id = form.get('id')?.toString() ?? '';
+	const raw = form.get('icon')?.toString() ?? '';
+	const icon = parseDeckIcon(raw);
+	if (raw && !icon) return fail(400, { op: 'icon', message: deckErrorMessage('bad_request') });
+	const res = await setDeckIcon(event.locals.supabase, id, icon);
+	if (!res.ok) return fail(400, { op: 'icon', message: res.message });
+	return { op: 'icon' as const, icon };
 }
 
 export async function pauseAction(event: Event) {
@@ -188,10 +201,17 @@ export async function releaseAction(event: Event) {
 	return { op: 'release' as const, n: res.value };
 }
 
-/** "+5 só hoje" fora do player (Início e Minhas palavras): soma ao extra de novas do dia. */
+/** "Estudar mais" fora do player (Início e Minhas palavras): soma `n` (padrão 5) ao extra de novas do dia. */
 export async function extraAction(event: Event) {
-	const { language, clock } = await context(event);
-	const res = await addExtraNew(event.locals.supabase, language, new Date(), clock);
+	const { language, clock, form } = await context(event);
+	const raw = form.get('n');
+	const res = await addExtraNew(
+		event.locals.supabase,
+		language,
+		new Date(),
+		clock,
+		raw === null ? undefined : Number(raw)
+	);
 	if (!res.ok) return fail(400, { op: 'extra', message: res.message });
 	return { op: 'extra' as const };
 }

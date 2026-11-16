@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
-	import { isPausedIn, type DeckSummary } from '#lib/decks.ts';
+	import { isPausedIn, shownDeckIcon, type DeckSummary } from '#lib/decks.ts';
 	import {
 		DECK_NAME_UI_MAX,
 		deckDisplayName,
@@ -8,8 +8,7 @@
 		hubSubtitle,
 		plural,
 		rowCounts,
-		todayBreakdown,
-		todayTotals
+		todayBreakdown
 	} from '#lib/decks-ui.ts';
 	import BulkBar from '#lib/ui/BulkBar.svelte';
 	import DeckLimits from '#lib/ui/DeckLimits.svelte';
@@ -25,20 +24,10 @@
 	let { data }: PageProps = $props();
 
 	const decks = $derived(data.decks);
-	const totals = $derived(todayTotals(decks, data.budget));
 	const subtitle = $derived(hubSubtitle(decks, data.flashcards));
 	const onlyDefault = $derived(decks.length === 1);
 	const nothing = $derived(
 		data.flashcards === 0 && decks.every((d) => !d.total.items && !d.total.fichas)
-	);
-	const perDayTotal = $derived(data.budget.perDay + data.budget.extraNew);
-	/** Barra da faixa: novas começadas hoje sobre o orçamento do dia; cheia quando tudo em dia. */
-	const barPct = $derived(
-		totals.total === 0
-			? 100
-			: perDayTotal
-				? Math.min(100, Math.round((data.budget.newDoneToday / perDayTotal) * 100))
-				: 0
 	);
 
 	const sel = new Selection(() => decks.map((d) => d.id));
@@ -233,44 +222,6 @@
 		</div>
 	</div>
 {:else}
-	<section class="tile lift study" aria-label="Para hoje">
-		<div class="txt">
-			{#if totals.total > 0}
-				<b data-testid="para-hoje">{plural(totals.total, 'para hoje', 'para hoje')}</b>
-				<span class="meta">
-					{#if totals.budgetSpent}
-						{totals.reviews ? `${plural(totals.reviews, 'revisão', 'revisões')} · ` : ''}as {perDayTotal}
-						novas de hoje já foram
-					{:else}
-						{todayBreakdown(totals.fresh, totals.reviews)}
-					{/if}
-				</span>
-			{:else}
-				<b data-testid="para-hoje">Tudo em dia</b>
-				<span class="meta"
-					>{#if data.nextDue?.startsWith('hoje')}O próximo volta {data.nextDue}{:else if data.tomorrow}Amanhã,
-						cerca de {plural(data.tomorrow, 'revisão', 'revisões')}{:else}Nada vence amanhã{/if}</span
-				>
-			{/if}
-			<span
-				class="bar"
-				role="progressbar"
-				aria-label="Novas de hoje"
-				aria-valuemin={0}
-				aria-valuemax={100}
-				aria-valuenow={barPct}><i style:width="{barPct}%"></i></span
-			>
-		</div>
-		{#if totals.total > 0}
-			<a
-				class="btn btn-primary btn-lg"
-				href={resolve('/flashcards/estudar')}
-				data-testid="estudar-tudo"
-				><Icon name="play" size="sm" />Estudar tudo<kbd aria-hidden="true">R</kbd></a
-			>
-		{/if}
-	</section>
-
 	<div class="table-tools">
 		<button
 			class="btn btn-ghost pick-btn"
@@ -330,6 +281,7 @@
 					>
 					<td class="c-name">
 						<div class="nm-wrap">
+							{#if shownDeckIcon(d)}<span class="dk-ic" class:paused><Icon name={shownDeckIcon(d)!} size="sm" /></span>{/if}
 							<a
 								class="nm"
 								class:paused
@@ -473,32 +425,6 @@
 		font-size: 13.5px;
 	}
 
-	.study {
-		flex-direction: row;
-		align-items: center;
-		gap: 24px;
-		margin-bottom: 26px;
-		padding: 18px 20px;
-	}
-	.study .txt {
-		flex: 1;
-		min-width: 0;
-		display: grid;
-		gap: 4px;
-	}
-	.study b {
-		font: 600 21px/1.2 var(--f-head);
-		letter-spacing: -0.01em;
-	}
-	.study .meta {
-		color: var(--ink-3);
-		font-size: 14.5px;
-	}
-	.study .bar {
-		max-width: 240px;
-		margin-top: 8px;
-	}
-
 	.table-tools {
 		display: none;
 	}
@@ -602,6 +528,13 @@
 	.nm.paused {
 		color: var(--ink-3);
 	}
+	.dk-ic {
+		display: grid;
+		color: var(--ink-2);
+	}
+	.dk-ic.paused {
+		color: var(--ink-3);
+	}
 	.dflt {
 		font-size: 13px;
 		white-space: nowrap;
@@ -672,18 +605,6 @@
 		}
 		.ph-acts {
 			justify-content: flex-start;
-		}
-		.study {
-			flex-direction: column;
-			align-items: stretch;
-			gap: 14px;
-			padding: 16px;
-		}
-		.study .bar {
-			max-width: none;
-		}
-		.study .btn {
-			width: 100%;
 		}
 		.table-tools {
 			display: flex;

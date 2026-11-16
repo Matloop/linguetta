@@ -11,6 +11,8 @@ import {
 	parseLeechAction,
 	parseLeechLapses,
 	parseLimit,
+	type DeckIcon,
+	parseDeckIcon,
 	parseNewOrder,
 	studyDayKey,
 	summarizeDecks,
@@ -61,6 +63,7 @@ export function toDeck(r: DeckRow, dayKey?: string): Deck {
 		newPerDayToday: today ? r.new_today : null,
 		reviewsPerDayToday: today ? r.reviews_today : null,
 		onReader: r.on_reader,
+		icon: parseDeckIcon(r.icon),
 		position: r.position,
 		createdAt: r.created_at
 	};
@@ -214,6 +217,14 @@ export async function renameDeck(
 	const name = parseDeckName(rawName);
 	if (!name) return failure({ message: 'deck_name' });
 	return update(supabase, deckId, { name });
+}
+
+export async function setDeckIcon(
+	supabase: Client,
+	deckId: string,
+	icon: DeckIcon | null
+): Promise<DeckResult> {
+	return update(supabase, deckId, { icon });
 }
 
 export async function setDeckPaused(

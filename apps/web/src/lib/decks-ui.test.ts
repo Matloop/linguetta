@@ -33,6 +33,7 @@ function deck(id: string, over: Partial<Deck> = {}): Deck {
 		newPerDayToday: null,
 		reviewsPerDayToday: null,
 		onReader: true,
+		icon: null,
 		position: 0,
 		createdAt: '2026-11-01T00:00:00.000Z',
 		...over

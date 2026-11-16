@@ -4,7 +4,7 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '#lib/database.types.ts';
-import { isPausedIn } from '#lib/decks.ts';
+import { isPausedIn, shownDeckIcon, type DeckIcon } from '#lib/decks.ts';
 import { forToday, rowCounts, todayTotals } from '#lib/decks-ui.ts';
 import type { Language } from '#lib/languages.ts';
 import {
@@ -33,6 +33,7 @@ export interface LanguageSummary {
 export interface ShellDeck {
 	id: string;
 	name: string;
+	icon: DeckIcon | null;
 	forToday: number;
 }
 
@@ -79,7 +80,7 @@ export async function loadShellSummary(
 		if (language === active && overview.decks.length > 1) {
 			decks = overview.decks
 				.filter((d) => d.depth === 0 && !isPausedIn(d, overview.decks))
-				.map((d) => ({ id: d.id, name: d.name, forToday: forToday(rowCounts(d)) }));
+				.map((d) => ({ id: d.id, name: d.name, icon: shownDeckIcon(d), forToday: forToday(rowCounts(d)) }));
 		}
 		return { language, items, toReview: totals.total, fresh: totals.fresh };
 	});

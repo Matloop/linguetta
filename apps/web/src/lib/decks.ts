@@ -27,6 +27,41 @@ export const DECK_LIMITS = {
 	extraMax: 1000
 } as const;
 
+/** Ícones que o usuário pode dar ao baralho (mesma lista do check da coluna decks.icon). */
+export const DECK_ICONS = [
+	'book',
+	'music',
+	'tv',
+	'globe',
+	'leaf',
+	'sparks',
+	'bookmark',
+	'folder',
+	'cards',
+	'quote',
+	'note',
+	'home',
+	'clock',
+	'calendar',
+	'image',
+	'chart',
+	'sound',
+	'user'
+] as const;
+export type DeckIcon = (typeof DECK_ICONS)[number];
+
+/** Ícone do baralho padrão enquanto o usuário não escolhe outro. */
+export const DEFAULT_DECK_ICON: DeckIcon = 'bookmark';
+
+/** Ícone mostrado: o escolhido, ou o genérico do baralho padrão. */
+export function shownDeckIcon(deck: Pick<Deck, 'icon' | 'isDefault'>): DeckIcon | null {
+	return deck.icon ?? (deck.isDefault ? DEFAULT_DECK_ICON : null);
+}
+
+export function parseDeckIcon(raw: unknown): DeckIcon | null {
+	return DECK_ICONS.find((i) => i === raw) ?? null;
+}
+
 /** Deck como a web e o snapshot veem (camelCase). */
 export interface Deck {
 	id: string;
@@ -44,6 +79,8 @@ export interface Deck {
 	newPerDayToday: number | null;
 	reviewsPerDayToday: number | null;
 	onReader: boolean;
+	/** Ícone escolhido (DECK_ICONS); null = sem ícone. */
+	icon: DeckIcon | null;
 	position: number;
 	createdAt: string;
 }
