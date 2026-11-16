@@ -54,32 +54,20 @@ export type Database = {
       book_chapters: {
         Row: {
           book_id: string
-          candidates: Json | null
-          error: string | null
           spine: number
-          status: string
           title: string
-          updated_at: string
           words: number
         }
         Insert: {
           book_id: string
-          candidates?: Json | null
-          error?: string | null
           spine: number
-          status?: string
           title?: string
-          updated_at?: string
           words?: number
         }
         Update: {
           book_id?: string
-          candidates?: Json | null
-          error?: string | null
           spine?: number
-          status?: string
           title?: string
-          updated_at?: string
           words?: number
         }
         Relationships: [
@@ -89,6 +77,62 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "books"
             referencedColumns: ["id"]
+          },
+        ]
+      }
+      book_highlights: {
+        Row: {
+          book_id: string
+          chapter: string
+          color: string
+          created_at: string
+          id: string
+          note: string
+          percent: number
+          prefix: string
+          quote: string
+          spine: number
+          suffix: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          book_id: string
+          chapter?: string
+          color?: string
+          created_at?: string
+          id?: string
+          note?: string
+          percent?: number
+          prefix?: string
+          quote: string
+          spine: number
+          suffix?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          book_id?: string
+          chapter?: string
+          color?: string
+          created_at?: string
+          id?: string
+          note?: string
+          percent?: number
+          prefix?: string
+          quote?: string
+          spine?: number
+          suffix?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "book_highlights_book_id_user_id_fkey"
+            columns: ["book_id", "user_id"]
+            isOneToOne: false
+            referencedRelation: "books"
+            referencedColumns: ["id", "user_id"]
           },
         ]
       }
@@ -281,10 +325,10 @@ export type Database = {
       decks: {
         Row: {
           created_at: string
+          icon: string | null
           id: string
           import_hash: string | null
           is_default: boolean
-          icon: string | null
           language: string
           limits_day: string | null
           name: string
@@ -301,6 +345,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          icon?: string | null
           id?: string
           import_hash?: string | null
           is_default?: boolean
@@ -320,10 +365,10 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          icon?: string | null
           id?: string
           import_hash?: string | null
           is_default?: boolean
-          icon?: string | null
           language?: string
           limits_day?: string | null
           name?: string

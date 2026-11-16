@@ -84,17 +84,18 @@ export async function saveWord(
 	book: ReaderBook,
 	input: WordSave
 ): Promise<{ itemId: string; created: boolean }> {
+	const language = input.language ?? book.language;
 	const position: EncounterEntry['position'] = {};
 	if (input.chapter) position.chapter = input.chapter;
 	if (input.spine !== null) position.spine = input.spine;
 	if (input.percent !== null) position.percent = input.percent;
 	const highlight = input.sentence
-		? findHighlight(input.sentence, [input.form, input.lemma], book.language)
+		? findHighlight(input.sentence, [input.form, input.lemma], language)
 		: '';
 	const entry: SaveEntry = {
-		language: book.language,
+		language: language,
 		lemma: input.lemma,
-		lemma_key: lemmaKey(input.lemma, book.language),
+		lemma_key: lemmaKey(input.lemma, language),
 		reading: '',
 		sense: input.translation,
 		note: input.note,

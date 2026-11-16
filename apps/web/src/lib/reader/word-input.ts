@@ -2,12 +2,15 @@
 // Limites como os do `save` do sync (CONTRACT §4) e de items.ts.
 
 import { LIMITS, charLength, normalizeLemma, normalizeText } from '#lib/items.ts';
+import { parseLanguage, type Language } from '#lib/languages.ts';
 import { MAX_SENTENCE } from './sentence.ts';
 
 export type WordSave = {
 	clientId: string;
 	at: Date;
 	lemma: string;
+	/** Idioma do trecho, se não for o do livro (palavra do texto original). */
+	language: Language | null;
 	translation: string;
 	note: string;
 	form: string;
@@ -47,6 +50,7 @@ export function parseWordSave(raw: unknown, now: Date): WordSave | null {
 		clientId: clientId.toLowerCase(),
 		at: Number.isNaN(at.getTime()) || at > now ? now : at,
 		lemma,
+		language: parseLanguage(r.language),
 		translation: clip(r.translation, LIMITS.sense),
 		note: clip(r.note, LIMITS.note),
 		form: clip(r.form, LIMITS.form, normalizeLemma),

@@ -35,6 +35,10 @@
 	--sel: rgba(17, 38, 26, 0.05);
 	--line: rgba(17, 38, 26, 0.08);
 	--line-2: rgba(17, 38, 26, 0.14);
+	--hl-amarelo: #e8b923;
+	--hl-verde: #4fae6a;
+	--hl-azul: #4a8fd6;
+	--hl-rosa: #de6f9a;
 	--ink: #16231b;
 	--ink-2: #464e48;
 	--ink-3: #6e736b;
@@ -97,6 +101,10 @@
 	--sel: rgba(247, 241, 230, 0.06);
 	--line: rgba(247, 241, 230, 0.08);
 	--line-2: rgba(247, 241, 230, 0.14);
+	--hl-amarelo: #f0c53d;
+	--hl-verde: #6cc784;
+	--hl-azul: #6ba6e6;
+	--hl-rosa: #ec86ae;
 	--ink: #f3ede1;
 	--ink-2: #d2d6cd;
 	--ink-3: #a5aea6;

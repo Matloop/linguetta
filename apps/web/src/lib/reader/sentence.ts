@@ -99,3 +99,17 @@ export function linkSentence(a: Element, locale?: string): string {
 	const end = start + (a.textContent ?? '').length;
 	return sentenceAround(block.textContent ?? '', start, end, locale);
 }
+
+/** A frase em volta de uma seleção ou palavra tocada (intervalo dentro do iframe do EPUB). */
+export function rangeSentence(range: Range, locale?: string): string {
+	const node = range.startContainer;
+	const el = node.nodeType === 1 ? (node as Element) : node.parentElement;
+	const doc = range.startContainer.ownerDocument;
+	if (!el || !doc) return collapse(range.toString());
+	const block = el.closest(BLOCKS) ?? el.closest('div, section, body') ?? el;
+	const pre = doc.createRange();
+	pre.setStart(block, 0);
+	pre.setEnd(range.startContainer, range.startOffset);
+	const start = pre.toString().length;
+	return sentenceAround(block.textContent ?? '', start, start + range.toString().length, locale);
+}

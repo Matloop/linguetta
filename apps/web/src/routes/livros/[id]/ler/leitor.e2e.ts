@@ -274,3 +274,124 @@ test('a posição vai para o servidor e o livro reabre nela', async ({ page }) =
 	await chapterWith(page, 'apareceu sobre o telhado');
 	await expect(page.getByText('Capítulo 2').first()).toBeVisible();
 });
+
+test('ajustes de leitura mudam o capítulo e ficam guardados', async ({ page }) => {
+	await login(page);
+	const bookId = await seedBook(page);
+	await page.goto(`/livros/${bookId}/ler`);
+	const chapter = await chapterWith(page, 'Era uma manhã clara');
+	await expect(page.getByText('Abrindo o livro…')).toHaveCount(0);
+
+	await page.getByTestId('ajustes').click();
+	const panel = page.getByTestId('painel-ajustes');
+	await panel.getByRole('button', { name: 'Sem serifa' }).click();
+	await panel.getByLabel('Justificar o texto').check();
+	await expect(async () => {
+		const css = await chapter.evaluate(() => {
+			const p = document.querySelector('p')!;
+			const s = getComputedStyle(p);
+			return { font: getComputedStyle(document.documentElement).fontFamily, align: s.textAlign };
+		});
+		expect(css.font).toContain('Linguetta Inter');
+		expect(css.align).toBe('justify');
+	}).toPass();
+
+	await page.reload();
+	const again = await chapterWith(page, 'Era uma manhã clara');
+	await expect(async () => {
+		expect(await again.evaluate(() => getComputedStyle(document.documentElement).fontFamily)).toContain(
+			'Linguetta Inter'
+		);
+	}).toPass();
+});
+
+test('grifa um trecho com nota e ele aparece na lista ao recarregar', async ({ page }) => {
+	await login(page);
+	const bookId = await seedBook(page);
+	await page.goto(`/livros/${bookId}/ler`);
+	const chapter = await chapterWith(page, 'Era uma manhã clara');
+	await expect(page.getByText('Abrindo o livro…')).toHaveCount(0);
+
+	// Seleciona "Era uma manhã clara" no capítulo.
+	await chapter.evaluate(() => {
+		const p = [...document.querySelectorAll('p')].find((x) => x.textContent?.includes('Era uma manhã clara'))!;
+		const node = p.firstChild!;
+		const text = node.textContent!;
+		const i = text.indexOf('Era uma manhã clara');
+		const r = document.createRange();
+		r.setStart(node, i);
+		r.setEnd(node, i + 'Era uma manhã clara'.length);
+		const sel = getSelection()!;
+		sel.removeAllRanges();
+		sel.addRange(r);
+	});
+	const bar = page.getByTestId('barra-grifo');
+	await expect(bar).toBeVisible();
+	await bar.getByRole('button', { name: 'Verde' }).click();
+
+	await expect(async () => {
+		const rows = await restAsUser<{ quote: string; color: string }[]>(
+			page,
+			`book_highlights?book_id=eq.${bookId}&select=quote,color`
+		);
+		expect(rows).toEqual([{ quote: 'Era uma manhã clara', color: 'verde' }]);
+	}).toPass();
+
+	await bar.getByRole('button', { name: 'Editar nota' }).or(bar.getByRole('button', { name: 'Nota' })).click();
+	await bar.getByTestId('nota-grifo').fill('começo bonito');
+	await bar.getByRole('button', { name: 'Guardar nota' }).click();
+	await expect(async () => {
+		const [row] = await restAsUser<{ note: string }[]>(
+			page,
+			`book_highlights?book_id=eq.${bookId}&select=note`
+		);
+		expect(row.note).toBe('começo bonito');
+	}).toPass();
+
+	await page.reload();
+	await chapterWith(page, 'Era uma manhã clara');
+	await page.getByTestId('grifos').click();
+	const list = page.getByTestId('lista-grifos');
+	await expect(list).toContainText('Era uma manhã clara');
+	await expect(list).toContainText('começo bonito');
+});
+
+test('tocar numa palavra do texto abre o dicionário e salva no banco', async ({ page }) => {
+	await login(page);
+	const bookId = await seedBook(page);
+	// Resposta do dicionário simulada: o teste não chama IA.
+	await page.route('**/palavras/consultar', (route) =>
+		route.fulfill({
+			json: { lemma: 'manhã', reading: '', pos: 'substantivo', sense: 'início do dia', translation: 'Foi uma manhã clara.' }
+		})
+	);
+	await page.goto(`/livros/${bookId}/ler`);
+	const chapter = await chapterWith(page, 'Era uma manhã clara');
+	await expect(page.getByText('Abrindo o livro…')).toHaveCount(0);
+
+	await chapter.getByText('Era uma manhã clara').first().click({ position: { x: 60, y: 8 } });
+	await expect(page.getByText('início do dia').first()).toBeVisible();
+	await page.getByRole('button', { name: /^Salvar/ }).click();
+	await expect(async () => {
+		const items = await restAsUser<{ lemma: string }[]>(page, 'items?deleted_at=is.null&select=lemma');
+		expect(items.map((i) => i.lemma)).toContain('manhã');
+	}).toPass();
+});
+
+test('sumário mostra a página de cada capítulo e dá para ir por página ou por %', async ({ page }) => {
+	await login(page);
+	const bookId = await seedBook(page);
+	await page.goto(`/livros/${bookId}/ler`);
+	await chapterWith(page, 'Era uma manhã clara');
+	await expect(page.getByText('Abrindo o livro…')).toHaveCount(0);
+	await expect(page.getByTestId('pagina')).toContainText('Pág. 1 de');
+
+	await page.getByRole('button', { name: 'Sumário' }).click();
+	await expect(page.getByRole('button', { name: /Capítulo 1\s*1$/ })).toBeVisible();
+	await expect(page.getByRole('button', { name: /Capítulo 2\s*\d+$/ })).toBeVisible();
+
+	await page.getByRole('button', { name: '%', exact: true }).click();
+	await page.getByTestId('ir-para').fill('100');
+	await page.getByTestId('ir-para').press('Enter');
+	await chapterWith(page, 'apareceu sobre o telhado');
+});

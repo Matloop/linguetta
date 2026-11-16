@@ -12,12 +12,25 @@
 	import { linkSentence } from '#lib/reader/sentence.ts';
 	import { ProgressSaver, positionFrom, type ReadingPosition } from '#lib/reader/progress.ts';
 	import type { BlendLink } from '#lib/reader/blend-link.ts';
+	import ReaderSettingsPanel from './ReaderSettingsPanel.svelte';
+	import HighlightBar from './HighlightBar.svelte';
+	import NotesPanel from './NotesPanel.svelte';
+	import DictCard from '#lib/ui/dict/DictCard.svelte';
+	import type { DictQuery } from '#lib/dictionary.ts';
+	import type { Anchor } from '#lib/ui/dict/picker.svelte.ts';
+	import type { Highlight, HighlightColor } from '#lib/reader/highlights.ts';
+	import type { TextSelection } from '#lib/reader/engine.ts';
+	import {
+		DEFAULT_SETTINGS,
+		clearBookSettings,
+		loadSettings,
+		saveSettings,
+		type ReaderSettings
+	} from '#lib/reader/settings.ts';
 	import type { PageProps } from './$types';
 
 	let { data }: PageProps = $props();
 
-	const FONT_KEY = 'linguetta.leitor.fonte';
-	const FONT_STEPS = [0.85, 0.92, 1, 1.1, 1.2, 1.32, 1.46];
 
 	let stage: HTMLDivElement | undefined = $state();
 	let engine: Engine | null = $state(null);
@@ -25,8 +38,34 @@
 	let toc = $state<TocEntry[]>([]);
 	let tocOpen = $state(false);
 	let here = $state<Relocation | null>(null);
-	let fontStep = $state(2);
+	let settings = $state<ReaderSettings>(DEFAULT_SETTINGS);
+	let perBook = $state(false);
+	let settingsOpen = $state(false);
+	let notesOpen = $state(false);
+	// svelte-ignore state_referenced_locally
+	let highlights = $state<Highlight[]>(data.highlights);
+	let selection = $state<TextSelection | null>(null);
+	let activeId = $state<string | null>(null);
+	const active = $derived(highlights.find((h) => h.id === activeId) ?? null);
 	let dark = $state(false);
+
+	// Páginas estimadas de cada capítulo: recalculadas quando a leitura anda ou a letra muda.
+	const tocPages = $derived.by(() => {
+		void here;
+		void settings;
+		return toc.map((e) => engine?.pageOfSpine(e.spine) ?? 0);
+	});
+	let jumpMode = $state<'page' | 'percent'>('page');
+	let jumpValue = $state('');
+
+	function jump(close: () => void) {
+		const n = Number(jumpValue.replace(',', '.'));
+		if (!engine || !Number.isFinite(n) || jumpValue.trim() === '') return;
+		close();
+		jumpValue = '';
+		if (jumpMode === 'page') void engine.goToPage(n);
+		else void engine.goToFraction(Math.min(100, Math.max(0, n)) / 100);
+	}
 
 	const percent = $derived(here ? Math.floor(here.bookFraction * 100) : 0);
 	const currentHref = $derived.by(() => {
@@ -129,6 +168,151 @@
 		}
 	}
 
+	// ---------- Dicionário (palavra ou trecho do texto) ----------
+
+	type Dict = {
+		query: DictQuery;
+		line: { before: string; mark: string; after: string };
+		anchor: Anchor;
+		clientId: string;
+		saving: boolean;
+		message: string;
+		saved: { sense: string } | null;
+	};
+	let dict = $state<Dict | null>(null);
+
+	function openDict(text: string, sentence: string, rect: { top: number; bottom: number; left: number; right: number }) {
+		const found = sentence.toLowerCase().indexOf(text.toLowerCase());
+		const line =
+			found >= 0
+				? {
+						before: sentence.slice(0, found),
+						mark: sentence.slice(found, found + text.length),
+						after: sentence.slice(found + text.length)
+					}
+				: { before: '', mark: sentence, after: '' };
+		selection = null;
+		activeId = null;
+		engine?.clearSelection();
+		if (card) closeCard();
+		dict = {
+			query: {
+				language: data.book.bookLanguage,
+				text,
+				sentence: sentence || text,
+				translateSentence: true
+			},
+			line,
+			anchor: {
+				left: rect.left,
+				top: rect.top,
+				bottom: rect.bottom,
+				width: rect.right - rect.left
+			},
+			clientId: '',
+			saving: false,
+			message: '',
+			saved: null
+		};
+	}
+
+	async function saveDict(input: { lemma: string; reading: string; sense: string }) {
+		const d = dict;
+		if (!d) return;
+		d.clientId ||= crypto.randomUUID();
+		d.saving = true;
+		d.message = '';
+		const pos = here;
+		try {
+			await post('palavra', {
+				action: 'salvar',
+				clientId: d.clientId,
+				at: new Date().toISOString(),
+				lemma: input.lemma || d.query.text,
+				language: data.book.bookLanguage,
+				translation: input.sense,
+				form: d.query.text,
+				sentence: d.query.sentence,
+				position: {
+					chapter: pos?.chapter ?? '',
+					spine: pos?.spine ?? 0,
+					percent: Math.round((pos?.bookFraction ?? 0) * 1000) / 10
+				}
+			});
+			d.saved = { sense: input.sense };
+		} catch (e) {
+			d.message = e instanceof Error ? e.message : 'Não deu para salvar agora.';
+		} finally {
+			d.saving = false;
+		}
+	}
+
+	// ---------- Grifos e notas ----------
+
+	async function sendMark(method: 'POST' | 'PATCH' | 'DELETE', body: unknown) {
+		const res = await fetch(`/livros/${data.book.id}/ler/grifos`, {
+			method,
+			headers: { 'content-type': 'application/json' },
+			body: JSON.stringify(body)
+		});
+		const json = await res.json().catch(() => ({}));
+		if (!res.ok) throw new Error(json?.message ?? 'Não deu agora.');
+		return json;
+	}
+
+	function setMarks(next: Highlight[]) {
+		highlights = next;
+		engine?.setHighlights(next);
+	}
+
+	async function createMark(color: HighlightColor, note = '') {
+		const sel = selection;
+		if (!sel) return;
+		const draft = {
+			spine: sel.spine,
+			quote: sel.quote,
+			prefix: sel.prefix,
+			suffix: sel.suffix,
+			chapter: here?.chapter ?? '',
+			percent: Math.round((here?.bookFraction ?? 0) * 1000) / 10,
+			color,
+			note
+		};
+		try {
+			const { id } = await sendMark('POST', draft);
+			const h: Highlight = { ...draft, id, createdAt: new Date().toISOString() };
+			setMarks([...highlights, h].sort((a, b) => a.spine - b.spine || a.percent - b.percent));
+			selection = null;
+			engine?.clearSelection();
+			activeId = id;
+		} catch (e) {
+			console.error(e);
+		}
+	}
+
+	async function editMark(patch: { color?: HighlightColor; note?: string }) {
+		const h = active;
+		if (!h) return;
+		try {
+			await sendMark('PATCH', { id: h.id, ...patch });
+			setMarks(highlights.map((x) => (x.id === h.id ? { ...x, ...patch } : x)));
+		} catch (e) {
+			console.error(e);
+		}
+	}
+
+	async function deleteMark() {
+		const h = active;
+		if (!h) return;
+		try {
+			await sendMark('DELETE', { id: h.id });
+			activeId = null;
+			setMarks(highlights.filter((x) => x.id !== h.id));
+		} catch (e) {
+			console.error(e);
+		}
+	}
+
 	async function undo() {
 		const c = card;
 		if (!c) return;
@@ -191,16 +375,24 @@
 				ink: css.getPropertyValue('--ink').trim() || '#16231b',
 				accent: css.getPropertyValue('--terra-ink').trim() || '#9a5536',
 				hl: css.getPropertyValue('--hl').trim() || '#e3e8dd',
-				fontScale: FONT_STEPS[fontStep],
-				dark: document.documentElement.classList.contains('tema-escuro')
+				settings,
+				dark: document.documentElement.classList.contains('tema-escuro'),
+				origin: location.origin
 			})
 		);
 	}
 
-	function setFont(step: number) {
-		fontStep = Math.max(0, Math.min(FONT_STEPS.length - 1, step));
-		localStorage.setItem(FONT_KEY, String(fontStep));
+	function changeSettings(next: ReaderSettings) {
+		settings = next;
+		saveSettings(data.book.id, next, perBook);
+		engine?.setLayout(next);
 		applyBookStyles();
+	}
+
+	function changePerBook(on: boolean) {
+		perBook = on;
+		if (on) saveSettings(data.book.id, settings, true);
+		else changeSettings(clearBookSettings(data.book.id));
 	}
 
 	function toggleTheme() {
@@ -233,8 +425,7 @@
 	}
 
 	onMount(() => {
-		const saved = Number(localStorage.getItem(FONT_KEY) ?? NaN);
-		if (Number.isInteger(saved) && saved >= 0 && saved < FONT_STEPS.length) fontStep = saved;
+		({ settings, perBook } = loadSettings(data.book.id));
 		dark = document.documentElement.classList.contains('tema-escuro');
 		const themeWatch = new MutationObserver(() => {
 			dark = document.documentElement.classList.contains('tema-escuro');
@@ -253,6 +444,16 @@
 				opened = await openBook(stage, new File([blob], 'livro.epub'), {
 					onRelocate,
 					onBlendTap,
+					onWordTap: (w) => openDict(w.text, w.sentence, w.rect),
+					onSelect: (s) => {
+						selection = s;
+						if (s) activeId = null;
+					},
+					onHighlightTap: (id) => {
+						if (card) closeCard();
+						selection = null;
+						activeId = id;
+					},
 					onTap: (zone) => {
 						if (card) closeCard();
 						else if (zone === 'left') opened?.goLeft();
@@ -263,6 +464,8 @@
 				if (closed) return opened.destroy();
 				engine = opened;
 				toc = opened.toc;
+				opened.setLayout(settings);
+				opened.setHighlights(highlights);
 				applyBookStyles();
 				if (data.progress) {
 					await opened.goToPosition(data.progress.spine, data.progress.chapterPercent / 100);
@@ -308,22 +511,26 @@
 			{#if here?.chapter}<p>{here.chapter}</p>{:else if data.book.author}<p>{data.book.author}</p>{/if}
 		</div>
 		<div class="tools">
-			<div class="font" role="group" aria-label="Tamanho da letra">
-				<button
-					class="icon-btn"
-					type="button"
-					aria-label="Diminuir letra"
-					disabled={fontStep === 0}
-					onclick={() => setFont(fontStep - 1)}><span class="a-sm">A</span></button
-				>
-				<button
-					class="icon-btn"
-					type="button"
-					aria-label="Aumentar letra"
-					disabled={fontStep === FONT_STEPS.length - 1}
-					onclick={() => setFont(fontStep + 1)}><span class="a-lg">A</span></button
-				>
-			</div>
+			<Popover bind:open={settingsOpen} label="Ajustes de leitura" width={340}>
+				{#snippet trigger({ toggle, expanded, id })}
+					<button
+						class="icon-btn"
+						type="button"
+						aria-label="Ajustes de leitura"
+						title="Ajustes de leitura"
+						aria-expanded={expanded}
+						aria-controls={id}
+						data-testid="ajustes"
+						onclick={toggle}><span class="a-aa">Aa</span></button
+					>
+				{/snippet}
+				<ReaderSettingsPanel
+					{settings}
+					{perBook}
+					onchange={changeSettings}
+					onperbook={changePerBook}
+				/>
+			</Popover>
 			<button
 				class="icon-btn"
 				type="button"
@@ -333,6 +540,31 @@
 			>
 				<Icon name={dark ? 'sun' : 'moon'} />
 			</button>
+			<Popover bind:open={notesOpen} label="Grifos e notas" width={340}>
+				{#snippet trigger({ toggle, expanded, id })}
+					<button
+						class="icon-btn"
+						type="button"
+						aria-label="Grifos e notas"
+						title="Grifos e notas"
+						aria-expanded={expanded}
+						aria-controls={id}
+						data-testid="grifos"
+						onclick={toggle}
+					>
+						<Icon name="pencil" />
+					</button>
+				{/snippet}
+				{#snippet children({ close })}
+					<NotesPanel
+						{highlights}
+						ongo={(h) => {
+							close();
+							engine?.goToHighlight(h);
+						}}
+					/>
+				{/snippet}
+			</Popover>
 			<Popover bind:open={tocOpen} label="Sumário" width={320}>
 				{#snippet trigger({ toggle, expanded, id })}
 					<button
@@ -349,9 +581,40 @@
 					</button>
 				{/snippet}
 				{#snippet children({ close })}
+					<form
+						class="jump"
+						onsubmit={(e) => {
+							e.preventDefault();
+							jump(close);
+						}}
+					>
+						<div class="jump-mode" role="group" aria-label="Ir para">
+							<button type="button" aria-pressed={jumpMode === 'page'} onclick={() => (jumpMode = 'page')}
+								>Página</button
+							>
+							<button
+								type="button"
+								aria-pressed={jumpMode === 'percent'}
+								onclick={() => (jumpMode = 'percent')}>%</button
+							>
+						</div>
+						<input
+							type="text"
+							inputmode="decimal"
+							aria-label={jumpMode === 'page' ? 'Ir para a página' : 'Ir para a porcentagem'}
+							placeholder={jumpMode === 'page'
+								? `1–${here?.totalPages ?? engine?.totalPages() ?? ''}`
+								: '0–100'}
+							bind:value={jumpValue}
+							data-testid="ir-para"
+						/>
+						<button class="go" type="submit" aria-label="Ir">
+							<Icon name="right" size="sm" />
+						</button>
+					</form>
 					<p class="toc-head">Sumário</p>
 					<ul class="toc">
-						{#each toc as entry (entry.href)}
+						{#each toc as entry, i (entry.href)}
 							<li>
 								<button
 									type="button"
@@ -360,7 +623,8 @@
 									onclick={() => {
 										close();
 										engine?.goToHref(entry.href);
-									}}>{entry.label}</button
+									}}
+									><span class="toc-label">{entry.label}</span><span class="toc-page">{tocPages[i]}</span></button
 								>
 							</li>
 						{/each}
@@ -400,8 +664,59 @@
 		<span class="bar" role="progressbar" aria-label="Progresso no livro" aria-valuenow={percent} aria-valuemin={0} aria-valuemax={100}
 			><i style:width="{percent}%"></i></span
 		>
+		{#if here}<span class="pg" data-testid="pagina">Pág. {here.page} de {here.totalPages}</span>{/if}
 		<span class="pct" data-testid="progresso">{percent}%</span>
 	</footer>
+
+	{#if selection}
+		<HighlightBar
+			quote={selection.quote}
+			existing={false}
+			ondefine={() => selection && openDict(selection.quote, selection.sentence, selection.rect)}
+			onpick={(c) => createMark(c)}
+			onnote={(text) => createMark('amarelo', text)}
+			onclose={() => {
+				selection = null;
+				engine?.clearSelection();
+			}}
+		/>
+	{:else if active}
+		{#key active.id}
+			<HighlightBar
+				quote={active.quote}
+				color={active.color}
+				note={active.note}
+				existing
+				ondefine={() =>
+					openDict(active.quote, active.quote, {
+						top: innerHeight * 0.3,
+						bottom: innerHeight * 0.3 + 20,
+						left: innerWidth / 2 - 40,
+						right: innerWidth / 2 + 40
+					})}
+				onpick={(c) => editMark({ color: c })}
+				onnote={(text) => editMark({ note: text })}
+				ondelete={deleteMark}
+				onclose={() => (activeId = null)}
+			/>
+		{/key}
+	{/if}
+
+	{#if dict}
+		{@const d = dict}
+		{#key d.query}
+			<DictCard
+				query={d.query}
+				line={d.line}
+				anchor={d.anchor}
+				inBank={d.saved ? { sense: d.saved.sense, ipa: '', pos: '' } : null}
+				saving={d.saving}
+				message={d.message}
+				onsave={saveDict}
+				onclose={() => (dict = null)}
+			/>
+		{/key}
+	{/if}
 
 	{#if card}
 		<div
@@ -494,20 +809,78 @@
 		align-items: center;
 		gap: 2px;
 	}
-	.font {
-		display: flex;
-		margin-right: 4px;
-	}
 	.icon-btn:disabled {
 		opacity: 0.4;
 		cursor: default;
 	}
-	.a-sm,
-	.a-lg {
-		font: 600 13px/1 var(--f-head);
+	.a-aa {
+		font: 600 15px/1 var(--f-head);
 	}
-	.a-lg {
-		font-size: 18px;
+	.jump {
+		display: flex;
+		gap: 6px;
+		margin-bottom: 10px;
+	}
+	.jump-mode {
+		display: flex;
+		padding: 2px;
+		border: 1px solid var(--line-2);
+		border-radius: var(--r-m);
+	}
+	.jump-mode button {
+		padding: 0 10px;
+		border: 0;
+		border-radius: var(--r-s);
+		background: transparent;
+		color: var(--ink-2);
+		font: 500 12px/1 var(--f-body);
+		cursor: pointer;
+	}
+	.jump-mode button[aria-pressed='true'] {
+		background: var(--sel);
+		color: var(--ink);
+	}
+	.jump input {
+		flex: 1;
+		min-width: 0;
+		padding: 0 10px;
+		height: 32px;
+		border: 1px solid var(--line-2);
+		border-radius: var(--r-m);
+		background: transparent;
+		font: 400 13px/1 var(--f-body);
+	}
+	.jump input:focus-visible {
+		outline: none;
+		box-shadow: 0 0 0 3px var(--ring);
+	}
+	.jump .go {
+		display: grid;
+		place-items: center;
+		width: 32px;
+		height: 32px;
+		border: 0;
+		border-radius: var(--r-m);
+		background: var(--terra-ink);
+		color: var(--page);
+		cursor: pointer;
+	}
+	.toc-label {
+		flex: 1;
+		min-width: 0;
+	}
+	.toc-page {
+		flex: none;
+		margin-left: auto;
+		color: var(--ink-3);
+		font-variant-numeric: tabular-nums;
+	}
+	.pg {
+		white-space: nowrap;
+		margin-right: 12px;
+		color: var(--ink-3);
+		font: 400 12px/1 var(--f-body);
+		font-variant-numeric: tabular-nums;
 	}
 	.toc-head {
 		margin: 0 0 6px;
@@ -524,7 +897,9 @@
 		overflow-y: auto;
 	}
 	.toc button {
-		display: block;
+		display: flex;
+		align-items: baseline;
+		gap: 12px;
 		width: 100%;
 		padding: 8px 10px;
 		border: 0;
@@ -688,9 +1063,6 @@
 		}
 		.side {
 			display: none;
-		}
-		.font {
-			margin-right: 0;
 		}
 		.card {
 			left: 0;
