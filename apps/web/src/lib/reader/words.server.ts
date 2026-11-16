@@ -22,6 +22,10 @@ export type BankStatus = {
 	itemId: string;
 	/** "Nova", "Revisão hoje", "Revisão em 3 dias", "Conhecida". */
 	label: string;
+	/** Sentido, pronúncia e classe guardados no item (o cartão do dicionário os mostra). */
+	sense: string;
+	ipa: string;
+	pos: string;
 };
 
 /** Desfazer um salvar só vale logo depois dele. */
@@ -47,15 +51,16 @@ export async function bankStatus(
 ): Promise<BankStatus | null> {
 	const { data } = await supabase
 		.from('items')
-		.select('id, status, flashcards(kind, state, due_at)')
+		.select('id, status, sense, ipa, part_of_speech, flashcards(kind, state, due_at)')
 		.eq('id', itemId)
 		.is('deleted_at', null)
 		.maybeSingle();
 	if (!data) return null;
-	if (data.status === 'conhecido') return { itemId, label: 'Conhecida' };
+	const base = { itemId, sense: data.sense, ipa: data.ipa, pos: data.part_of_speech };
+	if (data.status === 'conhecido') return { ...base, label: 'Conhecida' };
 	const rec = data.flashcards.find((f) => f.kind === 'reconhecer');
-	if (!rec || rec.state === STATE_NEW) return { itemId, label: 'Nova, ainda sem revisão' };
-	return { itemId, label: `Revisão ${formatNextReview([rec.due_at], now, clock)}` };
+	if (!rec || rec.state === STATE_NEW) return { ...base, label: 'Nova, ainda sem revisão' };
+	return { ...base, label: `Revisão ${formatNextReview([rec.due_at], now, clock)}` };
 }
 
 /**
@@ -67,11 +72,13 @@ export async function touchWord(
 	book: ReaderBook,
 	lemma: string,
 	now: Date,
-	clock: DayClock
+	clock: DayClock,
+	/** Idioma do trecho, se não for o do livro (palavra do texto original num blend). */
+	language: Language = book.language
 ): Promise<BankStatus | null> {
 	const { data, error } = await supabase.rpc('mark_seen', {
-		p_language: book.language,
-		p_lemma_key: lemmaKey(lemma, book.language)
+		p_language: language,
+		p_lemma_key: lemmaKey(lemma, language)
 	});
 	if (error) throw error;
 	const hit = data?.[0];

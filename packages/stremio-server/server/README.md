@@ -86,6 +86,36 @@ Qualquer idioma que o Wiktionary em inglês cobre funciona do mesmo jeito (`setu
 
 Dados: [Wiktionary](https://en.wiktionary.org/) (colaboradores do Wiktionary), licença [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/) e GFDL, extraídos pelo [Wiktextract](https://github.com/tatuylonen/wiktextract) ([Ylonen, 2022](https://aclanthology.org/2022.lrec-1.140/)) e distribuídos pelo [kaikki.org](https://kaikki.org/). O cartão mostra "Wiktionary" com o link do verbete. O banco gerado é obra derivada e segue a mesma licença.
 
+## Léxico offline para o Blend de livros (`build-lexicon.mjs`)
+
+Gera, uma vez, um arquivo estático que o web usa para misturar livros sem IA nem tradução em tempo de execução. Precisa de Node ≥ 24 (`node:sqlite`; o Bun não tem), dos dicionários dos dois idiomas em `.dict/` (com `<idioma>.freq.txt` na origem) e do OPUS-MT do par em `.models/`.
+
+```sh
+node scripts/build-lexicon.mjs pt it --top 40000        # ~1 h na primeira vez (OPUS-MT serial), retomável; --out <pasta>
+```
+
+Em vez de filtros duros, o léxico é uma **escada de qualidade**: cada linha traz um `tier` (0 melhor, 3 pior) e o consumidor desce até onde precisar.
+
+| tier | o que é |
+| --- | --- |
+| 0 | par de lemas confirmado pelos **dois** testes: retradução volta ao mesmo lema **e** as glosas inglesas das 2 primeiras acepções se cruzam |
+| 1 | confirmado por **um** dos testes; toda forma conjugada (finita ou gerúndio) de um par tier 0/1 também fica no tier 1 no mínimo |
+| 2 | o OPUS-MT traduz o lema solto e o resultado é um lema da mesma classe no dicionário de destino (uma palavra, diferente da origem), mas nenhum teste passou |
+| 3 | palavras funcionais (pronomes, determinantes, artigos, preposições, conjunções, contrações, partículas) e advérbios frequentes sem par aceito (até o rank 2000): cada forma de superfície é traduzida sozinha pelo OPUS-MT e aceita se resolve no destino como classe funcional ou advérbio; sem confirmação |
+
+Palavra solta o OPUS-MT traduz mal ("ter" → "ter"); quando a tradução crua não serve, a build repete dentro de uma frase-moldura (`a palavra "ter"` → `la parola "avere"`), tanto na ida quanto na retradução. Cobertura: substantivos, verbos, adjetivos e advérbios dos `--top` (40000) mais frequentes; nomes próprios nunca entram. Cada par é expandido em formas de superfície: substantivo (sg/pl), adjetivo (masc/fem × sg/pl), verbo (infinitivo, particípio passado em 4 formas e **todas as formas finitas** do paradigma), advérbio (só o lema). O italiano, que só lista o masculino singular dos adjetivos e particípios, ganha a flexão regular (`-o/-a/-i/-e`, `-e/-i`). Os acentos tônicos do dicionário (`cantàto`, `hà`) saem.
+
+Verbos conjugados: cada forma de origem vai para a forma do destino com o mesmo conjunto de tags (`modo|tempo|pessoa|número`, sem depender da ordem). O vocabulário do Wiktionary é o mesmo em pt e it, exceto o pretérito (`preterite` em pt, `historic past` em it, passato remoto), que `tagKey` unifica. Ficam de fora o que não tem equivalente (infinitivo pessoal, futuro do subjuntivo, mais-que-perfeito, imperativo negativo, formas raras/tradicionais). Como a tabela do dicionário guarda uma linha por (forma, verbete), casas homógrafas ("eu dizia" = "ele dizia") perdem a repetida; o script repõe a 3ª do singular a partir da 1ª (e no subjuntivo a 2ª) e, no italiano, as casas que repetem outras (subjuntivo presente 1ª pl. = indicativo, etc.). Com várias formas na mesma casa vence a mais frequente do destino. A taxa de casamento por casa vai em `conjugatedFormsMapped` no meta.
+
+Saída (padrão `apps/web/src/lib/blend/lexicon/`): `<src>-<tgt>.lexicon.json.gz` e `<src>-<tgt>.lexicon.meta.json`, gravados no fim de uma build completa (nome temporário + rename). Formato:
+
+```json
+{ "version": 2, "source": "pt", "target": "it",
+  "forms": { "<forma de origem, minúscula NFC>": [["n|v|a|d|f", "lemaOrigem", "formaDestino", "lemaDestino", rank, tier], ...] } }
+```
+
+`rank` é a posição do lema na lista de frequência de origem (a melhor entre o lema e suas formas; 0 se desconhecido). As linhas de cada forma vêm da melhor para a pior (tier crescente, depois rank). Linhas cuja forma de destino é igual à de origem **não** são descartadas (o consumidor pula). Forma que também é palavra funcional na origem perde as linhas de conteúdo e fica só com a linha `f`. O meta traz `tiers` (linhas por tier, índice = tier), `rowsByTierPos`, `lemmaPairsByTier`, `conjugatedFormsMapped` e o tamanho do arquivo. O cache das traduções (`<src>-<tgt>.mt-cache.json`, fora do git) guarda os testes por lema (`palavra|classe`) e a tradução das funcionais (`f|palavra`), então a build é retomável e refazer é rápido. Teste: `node --test test/build-lexicon.test.js`.
+
 ## Variáveis de ambiente
 
 | Variável | Padrão | Uso |

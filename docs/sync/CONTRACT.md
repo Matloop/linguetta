@@ -659,7 +659,7 @@ Os estados de flashcard nos fixtures também saíram do `replay()` do servidor.
 
 ## 13. Livros com blend
 
-A pessoa envia um EPUB em `/livros` no app, escolhe a língua do blend, os capítulos e o "% das palavras", e o app gera o livro com links `#lb:` (formato do `blend-format.md`). Cada geração (inclusive "continuar o blend" em mais capítulos) cria uma **versão** nova do arquivo. Livros com a chave **No aparelho** ligada e pelo menos uma versão pronta descem no sync.
+A pessoa envia um EPUB em `/livros` no app, escolhe a língua do blend, os capítulos e o "% das palavras", e o app gera o livro com links `#lb:` (formato do `blend-format.md`). As palavras vêm de um léxico estático (sem IA) e o livro sai numa só chamada. O "% das palavras" vai de 1% a 50% em qualquer livro: o app usa a escada de rigor (`lib/blend/ladder.ts`), que parte dos filtros mais estritos e só afrouxa, do menos ao mais importante, o que o % pedido exige. Cada geração cria uma **versão** nova do arquivo. Livros com a chave **No aparelho** ligada e pelo menos uma versão pronta descem no sync.
 
 ### `GET /api/v1/sync/books?protocol=1` (Bearer)
 

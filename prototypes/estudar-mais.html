@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Estudar mais — 5 opções</title>
+<style>
+:root{--bg:#262220;--panel:#2f2a27;--line:#3d3733;--tx:#f1ebe0;--mut:#a39a8d;--acc:#e0a07e;--cream:#f1ebe0;--ink:#262220}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);font:15px/1.4 Manrope,Inter,system-ui,sans-serif;padding:28px}
+h1{font-size:20px;margin:0 0 4px}p.sub{color:var(--mut);margin:0 0 28px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(430px,1fr));gap:20px}
+.card{background:#2a2523;border:1px solid var(--line);border-radius:16px;padding:18px;min-height:380px}
+.card h2{font-size:13px;margin:0 0 2px;color:var(--acc);text-transform:uppercase;letter-spacing:.08em}
+.card .d{color:var(--mut);font-size:13px;margin:0 0 16px}
+.bar{display:flex;align-items:center;justify-content:flex-end;gap:10px;position:relative;padding:10px;background:var(--bg);border-radius:12px;border:1px solid var(--line)}
+.ghost{background:none;border:0;color:var(--tx);font:inherit;padding:8px 10px;border-radius:10px;cursor:pointer;display:flex;gap:6px;align-items:center}
+.ghost:hover,.ghost.on{background:var(--panel)}
+.primary{background:var(--cream);color:var(--ink);border:0;border-radius:10px;padding:9px 16px;font:inherit;font-weight:600;cursor:pointer}
+.ico{width:36px;height:36px;justify-content:center;padding:0;border:1px solid var(--line)}
+.pop{position:absolute;right:10px;top:58px;width:290px;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px;box-shadow:0 18px 40px #0007;z-index:5}
+.pop[hidden]{display:none}
+.pop h3{margin:0 0 12px;font-size:15px}
+.chips{display:flex;gap:8px;flex-wrap:wrap}
+.chip{flex:1;min-width:48px;background:var(--bg);border:1px solid var(--line);color:var(--tx);border-radius:10px;padding:9px 0;font:inherit;cursor:pointer}
+.chip.sel{background:var(--cream);color:var(--ink);border-color:var(--cream);font-weight:700}
+.go{width:100%;margin-top:14px}
+.hint{color:var(--mut);font-size:12px;margin-top:10px}
+.step{display:flex;align-items:center;justify-content:space-between;background:var(--bg);border-radius:12px;padding:8px}
+.step button{width:40px;height:40px;border-radius:10px;border:1px solid var(--line);background:var(--panel);color:var(--tx);font-size:20px;cursor:pointer}
+.step b{font-size:32px;font-weight:600}
+input[type=range]{width:100%;accent-color:var(--acc)}
+.big{font-size:40px;font-weight:600;text-align:center;margin:4px 0}
+.row{display:flex;justify-content:space-between;align-items:center;width:100%;background:none;border:0;color:var(--tx);font:inherit;padding:10px 8px;border-radius:9px;cursor:pointer}
+.row:hover{background:var(--bg)}.row small{color:var(--mut)}
+.modalbg{position:absolute;inset:0;background:#000a;border-radius:16px;display:flex;align-items:center;justify-content:center;z-index:9}
+.modalbg[hidden]{display:none}
+.modal{background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:22px;width:360px}
+.opts{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:14px 0}
+.opt{background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:12px;text-align:left;color:var(--tx);font:inherit;cursor:pointer}
+.opt.sel{border-color:var(--acc);box-shadow:0 0 0 1px var(--acc)}
+.opt b{display:block;font-size:22px}.opt span{color:var(--mut);font-size:12px}
+.wrap{position:relative}
+.cancel{background:none;border:0;color:var(--mut);cursor:pointer;font:inherit;margin-top:8px;width:100%}
+</style>
+</head>
+<body>
+<h1>Estudar mais: 5 opções</h1>
+<p class="sub">Clique no gatilho de cada barra para abrir. Todas substituem o "+ 5 novas".</p>
+<div class="grid">
+
+<!-- 1 -->
+<div class="card"><h2>1 · Ícone + chips</h2><p class="d">Ícone simples; ao clicar, escolhe o número em botões.</p>
+<div class="bar"><button class="ghost">Exibir ▾</button><button class="ghost ico" data-t="p1" title="Estudar mais">＋</button><button class="primary">▷ Revisar 4</button>
+<div class="pop" id="p1" hidden><h3>Estudar mais quantas palavras novas?</h3>
+<div class="chips" data-group><button class="chip">5</button><button class="chip sel">10</button><button class="chip">20</button><button class="chip">30</button></div>
+<button class="primary go">Estudar 10 novas</button><div class="hint">37 novas disponíveis · só vale hoje</div></div></div></div>
+
+<!-- 2 -->
+<div class="card"><h2>2 · Stepper −/+</h2><p class="d">Ícone de camadas; ajuste fino de 1 em 1 (ou 5 em 5).</p>
+<div class="bar"><button class="ghost">Exibir ▾</button><button class="ghost ico" data-t="p2" title="Estudar mais">⧉</button><button class="primary">▷ Revisar 4</button>
+<div class="pop" id="p2" hidden><h3>Quantas novas você quer ver hoje?</h3>
+<div class="step"><button onclick="st(this,-5)">−</button><b>10</b><button onclick="st(this,5)">+</button></div>
+<button class="primary go">Adicionar à fila</button><div class="hint">≈ 4 min de estudo</div></div></div></div>
+
+<!-- 3 -->
+<div class="card"><h2>3 · Controle deslizante</h2><p class="d">Número grande + slider; mostra o tempo estimado.</p>
+<div class="bar"><button class="ghost">Exibir ▾</button><button class="ghost ico" data-t="p3" title="Estudar mais">⚡</button><button class="primary">▷ Revisar 4</button>
+<div class="pop" id="p3" hidden><h3>Quanto mais você quer estudar?</h3>
+<div class="big"><span id="v3">15</span> <small style="font-size:14px;color:var(--mut)">palavras</small></div>
+<input type="range" min="1" max="50" value="15" oninput="v3.textContent=this.value;t3.textContent=Math.round(this.value*0.4)">
+<div class="hint">≈ <span id="t3">6</span> min · 37 disponíveis</div>
+<button class="primary go">Começar</button></div></div></div>
+
+<!-- 4 -->
+<div class="card"><h2>4 · Menu de atalhos</h2><p class="d">Sem confirmar: um toque já adiciona. Último item abre campo livre.</p>
+<div class="bar"><button class="ghost">Exibir ▾</button><button class="ghost" data-t="p4">＋ Mais <span style="color:var(--mut)">▾</span></button><button class="primary">▷ Revisar 4</button>
+<div class="pop" id="p4" hidden><h3>Estudar mais</h3>
+<button class="row">5 palavras <small>≈ 2 min</small></button>
+<button class="row">10 palavras <small>≈ 4 min</small></button>
+<button class="row">20 palavras <small>≈ 8 min</small></button>
+<button class="row">Outro número… <small>→</small></button></div></div></div>
+
+<!-- 5 -->
+<div class="card wrap"><h2>5 · Janela com cartões</h2><p class="d">Ícone abre um diálogo central com 4 tamanhos de sessão.</p>
+<div class="bar"><button class="ghost">Exibir ▾</button><button class="ghost ico" data-m="m5" title="Estudar mais">⤴</button><button class="primary">▷ Revisar 4</button></div>
+<div class="modalbg" id="m5" hidden><div class="modal"><h3 style="margin:0">Estudar mais quantas?</h3><div class="hint" style="margin:4px 0 0">Palavras novas, além da meta de hoje.</div>
+<div class="opts" data-group>
+<button class="opt"><b>5</b><span>Rapidinho · 2 min</span></button>
+<button class="opt sel"><b>10</b><span>Leve · 4 min</span></button>
+<button class="opt"><b>20</b><span>Focado · 8 min</span></button>
+<button class="opt"><b>30</b><span>Maratona · 12 min</span></button></div>
+<button class="primary go">Estudar 10 novas</button><button class="cancel" onclick="m5.hidden=true">Cancelar</button></div></div></div>
+
+</div>
+<script>
+document.querySelectorAll('[data-t]').forEach(b=>b.onclick=e=>{e.stopPropagation();const p=document.getElementById(b.dataset.t);const h=p.hidden;document.querySelectorAll('.pop').forEach(x=>x.hidden=true);p.hidden=!h;b.classList.toggle('on',h)});
+document.querySelectorAll('[data-m]').forEach(b=>b.onclick=()=>document.getElementById(b.dataset.m).hidden=false);
+document.addEventListener('click',e=>{if(!e.target.closest('.pop'))document.querySelectorAll('.pop').forEach(x=>x.hidden=true)});
+document.querySelectorAll('[data-group]').forEach(g=>g.onclick=e=>{const b=e.target.closest('button');if(!b)return;g.querySelectorAll('button').forEach(x=>x.classList.remove('sel'));b.classList.add('sel');const n=b.querySelector('b')?.textContent||b.textContent;const go=g.parentElement.querySelector('.go');if(go)go.textContent='Estudar '+n+' novas'});
+function st(b,d){const s=b.parentElement.querySelector('b');s.textContent=Math.max(1,+s.textContent+d)}
+</script>
+</body>
+</html>

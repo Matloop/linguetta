@@ -1,14 +1,16 @@
-// O livro com blend, do EPUB aberto ao EPUB novo: capítulos, pedaços para a IA, validação
-// das candidatas, escolha (select.ts) e inserção dos links (xhtml.ts). Tudo puro: o
-// servidor só busca e guarda os bytes.
+// O livro com blend, do EPUB aberto ao EPUB novo: capítulos, candidatas do léxico
+// (lexicon.ts), escolha (select.ts) e inserção dos links (xhtml.ts). Tudo puro: o servidor
+// só busca e guarda os bytes.
 
-import { countWords, languageProfile } from '@linguetta/language';
+import { countWords } from '@linguetta/language';
 import { blendAnchor } from './link.ts';
 import { readText, writeEpub, type Epub, type SpineItem } from './epub.ts';
-import { selectSwaps, type Frequency } from './select.ts';
+import { LADDER, LAST_STEP, monotonic } from './ladder.ts';
+import { passesFilter, rankFrequency, ranksOf, scanChapter, type LexCandidate, type Lexicon, type Ranks } from './lexicon.ts';
+import { MAX_COVERAGE, selectSwaps } from './select.ts';
 import { parseXhtml, type Replacement, type XhtmlDoc } from './xhtml.ts';
 
-/** O que a IA propõe para um trecho do parágrafo `para` do capítulo. */
+/** O que o léxico propõe para um trecho do parágrafo `para` do capítulo. */
 export interface Candidate {
 	/** Índice do parágrafo no capítulo. */
 	para: number;
@@ -22,17 +24,6 @@ export interface Candidate {
 	translation: string;
 	note: string;
 }
-
-/** Como fica em book_chapters.candidates. */
-export interface ChapterCandidates {
-	parts: number;
-	/** Pedaços já respondidos (para a tela ler sem baixar as candidatas). */
-	done: number;
-	coverage: number;
-	byPart: Record<string, Candidate[]>;
-}
-
-export const CANDIDATE_LIMITS = { form: 80, target: 80, lemma: 80, translation: 120, note: 120 };
 
 const XHTML_TYPES = new Set(['application/xhtml+xml', 'text/html', 'application/xml']);
 
@@ -65,112 +56,36 @@ export function chapterInfos(epub: Epub, bookLanguage: string): ChapterInfo[] {
 	});
 }
 
-/** Texto do parágrafo como vai para a IA: espaços colapsados. */
-export const paragraphText = (text: string) => text.replace(/\s+/g, ' ').trim();
-
-/** Parte das palavras que a IA propõe: mais do que a cota, para a escolha ter folga. */
-export function candidateShare(coverage: number): number {
-	return Math.max(0.05, Math.min(coverage <= 0.5 ? 0.6 : 1, coverage * 1.5));
-}
-
-/**
- * Palavras por pedaço: cada chamada da IA responde umas 40 candidatas, o que cabe no tempo
- * da função da Vercel e no limite de tokens do plano grátis. Mais cobertura, pedaço menor.
- * O piso de 100 palavras vale até 60% de candidatas; acima disso o pedaço encolhe para nunca
- * pedir mais de 60 candidatas numa chamada (o máximo que 50% de cobertura já pedia).
- */
-export function partWords(coverage: number): number {
-	const share = candidateShare(coverage);
-	return Math.round(Math.max(Math.min(100, 60 / share), Math.min(600, 40 / share)));
-}
-
-/** Pedaços do capítulo: faixas [de, até) de parágrafos, com até `size` palavras cada. */
-export function chapterParts(wordsPerParagraph: readonly number[], size: number): [number, number][] {
-	const parts: [number, number][] = [];
-	let from = 0;
-	let acc = 0;
-	wordsPerParagraph.forEach((w, i) => {
-		if (acc > 0 && acc + w > size) {
-			parts.push([from, i]);
-			from = i;
-			acc = 0;
+/** Texto dos primeiros capítulos (até `maxChars`), para descobrir a língua do livro. */
+export function bookSampleText(epub: Epub, maxChars = 40_000): string {
+	const out: string[] = [];
+	let size = 0;
+	for (const item of epub.spine) {
+		const doc = chapterDoc(epub, item);
+		if (!doc) continue;
+		for (const p of doc.paragraphs) {
+			out.push(p.text);
+			size += p.text.length;
+			if (size >= maxChars) return out.join('\n');
 		}
-		acc += w;
-	});
-	if (wordsPerParagraph.length > from) parts.push([from, wordsPerParagraph.length]);
-	return parts;
-}
-
-/** Quantas candidatas pedir para um pedaço. */
-export function wantedCandidates(words: number, coverage: number): number {
-	return Math.max(3, Math.ceil(words * candidateShare(coverage)));
-}
-
-const SENTENCE_START = /(^|[.!?…:;"“”«»—–(\n]\s*)$/;
-
-/**
- * Candidata utilizável no parágrafo: campos dentro dos limites, forma achada numa palavra
- * inteira e editável, troca que muda o texto, e sem cara de nome próprio (maiúscula fora do
- * começo da frase, em escrita com caixa). Devolve a posição.
- */
-export function locateCandidate(
-	doc: XhtmlDoc,
-	c: Candidate,
-	bookLanguage: string,
-	taken: { start: number; end: number }[] = []
-): { start: number; end: number } | null {
-	if (!c.form || !c.target || !c.lemma || !c.translation) return null;
-	if (c.form.toLocaleLowerCase() === c.target.toLocaleLowerCase()) return null;
-	const at = doc.locate(c.para, c.form, bookLanguage, taken);
-	if (!at) return null;
-	const text = doc.paragraphs[c.para].text;
-	const found = text.slice(at.start, at.end);
-	if (languageProfile(bookLanguage).cased) {
-		const first = String.fromCodePoint(found.codePointAt(0) ?? 32);
-		const upper = first !== first.toLocaleLowerCase() && first === first.toLocaleUpperCase();
-		if (upper && !SENTENCE_START.test(text.slice(0, at.start))) return null;
 	}
-	return at;
-}
-
-export interface BuildChapter {
-	spine: number;
-	candidates: Candidate[];
+	return out.join('\n');
 }
 
 export interface BuildOptions {
 	bookLanguage: string;
 	language: string;
 	coverage: number;
+	lexicon: Lexicon;
 	preferWords?: readonly string[];
-	frequency?: Frequency | null;
-}
-
-/** Candidatas que acham lugar no parágrafo, com a forma como está no texto e a posição. */
-export function locatedCandidates(
-	doc: XhtmlDoc,
-	para: number,
-	candidates: readonly Candidate[],
-	bookLanguage: string
-): (Candidate & { start: number })[] {
-	const out: (Candidate & { start: number })[] = [];
-	for (const c of candidates) {
-		if (c.para !== para) continue;
-		const taken = out.filter((x) => x.form === c.form).map((x) => ({ start: x.start, end: x.start + x.form.length }));
-		const at = locateCandidate(doc, c, bookLanguage, taken);
-		if (!at) continue;
-		out.push({ ...c, form: doc.paragraphs[para].text.slice(at.start, at.end), start: at.start });
-	}
-	return out;
+	/** Degrau da escada por onde começar (o que a prévia já mostrou); se não alcança, sobe. */
+	startStep?: number;
 }
 
 const PREVIEW_MIN = 30;
 const PREVIEW_MAX = 60;
 
-/**
- * Parágrafo da prévia: o primeiro com 30 a 60 palavras (cabe numa chamada da IA com
- * candidata para cada palavra); sem nenhum, o mais longo. Capítulo sem texto: null.
- */
+/** Parágrafo da prévia: o primeiro com 30 a 60 palavras; sem nenhum, o mais longo. Sem texto: null. */
 export function previewParagraph(doc: XhtmlDoc, bookLanguage: string): number | null {
 	const words = doc.paragraphs.map((p) => countWords(p.text, bookLanguage));
 	const medium = words.findIndex((w) => w >= PREVIEW_MIN && w <= PREVIEW_MAX);
@@ -179,55 +94,133 @@ export function previewParagraph(doc: XhtmlDoc, bookLanguage: string): number | 
 	return longest >= 0 && words[longest] > 0 ? longest : null;
 }
 
-type Located = Candidate & { start: number; global: number };
+type Located = LexCandidate & { global: number };
 
-/**
- * O EPUB inteiro com blend nos capítulos dados. A escolha corre sobre todos os parágrafos
- * desses capítulos em sequência, para o espaçamento e a repetição atravessarem capítulos.
- */
-export function buildBlend(
-	epub: Epub,
-	chapters: readonly BuildChapter[],
-	opts: BuildOptions
-): { bytes: Uint8Array; links: number } {
+/** Os capítulos dados (índices do spine) com as candidatas do léxico, parágrafo a parágrafo. */
+function prepare(epub: Epub, spines: readonly number[], opts: Omit<BuildOptions, 'coverage'>) {
 	const docs: { item: SpineItem; doc: XhtmlDoc; offset: number }[] = [];
 	const texts: string[] = [];
 	const candidates: Located[][] = [];
-	for (const ch of [...chapters].sort((a, b) => a.spine - b.spine)) {
-		const item = epub.spine[ch.spine];
+	for (const spine of [...spines].sort((a, b) => a - b)) {
+		const item = epub.spine[spine];
 		const doc = item ? chapterDoc(epub, item) : null;
 		if (!item || !doc) continue;
 		const offset = texts.length;
 		docs.push({ item, doc, offset });
+		const byPara: Located[][] = doc.paragraphs.map(() => []);
+		for (const c of scanChapter(doc, opts.lexicon, opts.bookLanguage)) {
+			byPara[c.para].push({ ...c, global: offset + c.para });
+		}
 		doc.paragraphs.forEach((p, para) => {
 			texts.push(p.text);
-			candidates.push(
-				locatedCandidates(doc, para, ch.candidates, opts.bookLanguage).map((x) => ({
-					...x,
-					global: offset + para
-				}))
-			);
+			candidates.push(byPara[para]);
 		});
 	}
+	const words = texts.reduce((n, t) => n + countWords(t, opts.bookLanguage), 0);
+	return { docs, texts, candidates, words, byFilter: new Map<string, { candidates: Located[][]; ranks: Ranks }>() };
+}
 
-	const chosen = selectSwaps({
-		texts,
-		candidates,
+type Prepared = ReturnType<typeof prepare>;
+
+/** Quantas palavras do livro as trocas escolhidas cobrem ("de novo" vale 2). */
+const swapWords = (chosen: readonly (readonly { form: string }[])[], lang: string) =>
+	chosen.reduce((n, list) => n + list.reduce((m, c) => m + Math.max(1, countWords(c.form, lang)), 0), 0);
+
+/** A escolha das trocas num degrau da escada; as candidatas do filtro do degrau ficam guardadas. */
+function chooseAt(
+	p: Prepared,
+	opts: Omit<BuildOptions, 'coverage'>,
+	step: number,
+	coverage: number,
+	preferWords: readonly string[] | undefined
+) {
+	const { filter, relax } = LADDER[step];
+	const key = JSON.stringify(filter);
+	let at = p.byFilter.get(key);
+	if (!at) {
+		const kept = p.candidates.map((list) => list.filter((c) => passesFilter(c, filter)));
+		at = { candidates: kept, ranks: ranksOf(kept.flat()) };
+		p.byFilter.set(key, at);
+	}
+	return selectSwaps({
+		texts: p.texts,
+		candidates: at.candidates,
 		sourceLang: opts.bookLanguage,
 		targetLang: opts.language,
-		coverage: opts.coverage,
-		preferWords: opts.preferWords,
-		frequency: opts.frequency
+		coverage,
+		relax,
+		preferWords,
+		frequency: rankFrequency(at.ranks)
 	});
+}
+
+/**
+ * O que cada degrau da escada entrega nos capítulos: a maior fração das palavras que a
+ * escolha consegue trocar naquele degrau (cobertura máxima, uma escolha por degrau). Nunca
+ * decresce de um degrau para o seguinte.
+ */
+export function achievableByStep(
+	epub: Epub,
+	spines: readonly number[],
+	opts: Omit<BuildOptions, 'coverage' | 'startStep'>
+): { words: number; fractions: number[] } {
+	const p = prepare(epub, spines, opts);
+	const raw = LADDER.map((_, step) =>
+		p.words ? swapWords(chooseAt(p, opts, step, MAX_COVERAGE, undefined), opts.bookLanguage) / p.words : 0
+	);
+	return { words: p.words, fractions: monotonic(raw) };
+}
+
+/** Um parágrafo real do capítulo com todas as candidatas dele (filtro aberto); a tela filtra e escolhe as trocas de cada %. */
+export function blendPreview(epub: Epub, spine: number, opts: Omit<BuildOptions, 'coverage' | 'startStep'>) {
+	const item = epub.spine[spine];
+	const doc = item ? chapterDoc(epub, item) : null;
+	const para = doc ? previewParagraph(doc, opts.bookLanguage) : null;
+	if (!doc || para === null) return null;
+	const candidates = scanChapter(doc, opts.lexicon, opts.bookLanguage)
+		.filter((c) => c.para === para)
+		.map(({ form, target, lemma, translation, start, tier, rank }) => ({
+			form,
+			target,
+			lemma,
+			translation,
+			start,
+			tier,
+			rank
+		}));
+	return { text: doc.paragraphs[para].text, candidates };
+}
+
+/**
+ * O EPUB inteiro com blend nos capítulos dados. A escolha corre sobre todos os parágrafos
+ * desses capítulos em sequência, para o espaçamento e a repetição atravessarem capítulos.
+ * Usa o primeiro degrau da escada (a partir de `startStep`) cujas trocas fecham o % pedido;
+ * sem nenhum, o último. `step` e `relaxed` dizem o que foi liberado. `swaps` são as palavras
+ * trocadas; `words`, as palavras dos capítulos.
+ */
+export function buildBlend(
+	epub: Epub,
+	spines: readonly number[],
+	opts: BuildOptions
+): { bytes: Uint8Array; links: number; swaps: number; words: number; step: number; relaxed: string[] } {
+	const p = prepare(epub, spines, opts);
+	const quota = Math.round(opts.coverage * p.words);
+	let step = Math.min(Math.max(opts.startStep ?? 0, 0), LAST_STEP);
+	let chosen = chooseAt(p, opts, step, opts.coverage, opts.preferWords);
+	while (step < LAST_STEP && swapWords(chosen, opts.bookLanguage) < quota) {
+		chosen = chooseAt(p, opts, ++step, opts.coverage, opts.preferWords);
+	}
 
 	const changed = new Map<string, string>();
 	let links = 0;
-	for (const { item, doc, offset } of docs) {
+	let swaps = 0;
+	for (const { item, doc, offset } of p.docs) {
 		const replacements: Replacement[] = [];
 		doc.paragraphs.forEach((_, para) => {
 			for (const c of chosen[offset + para] ?? []) {
 				const html = blendAnchor(c.target, c.lemma, c.translation, c.note);
 				if (!html) continue;
+				swaps += Math.max(1, countWords(c.form, opts.bookLanguage));
 				replacements.push({ para, start: c.start, end: c.start + c.form.length, html });
 			}
 		});
@@ -235,5 +228,12 @@ export function buildBlend(
 		links += replacements.length;
 		changed.set(item.path, doc.render(replacements));
 	}
-	return { bytes: writeEpub(epub, changed), links };
+	return {
+		bytes: writeEpub(epub, changed),
+		links,
+		swaps,
+		words: p.words,
+		step,
+		relaxed: [...LADDER[step].relaxed]
+	};
 }

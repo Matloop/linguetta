@@ -93,8 +93,8 @@
 		requestAnimationFrame(() => lemma?.focus());
 	}
 
-	// Baralhos do idioma escolhido, buscados quando "Mais campos" abre.
-	const decks = new DeckOptions(() => (more && isOpen ? chosen : null));
+	// Baralhos do idioma escolhido, buscados quando o diálogo abre (o chip fica na barra).
+	const decks = new DeckOptions(() => (isOpen ? chosen : null));
 
 	// ---------- Preencher com IA ----------
 	// Os campos (WordField, modo form) não são controlados: lê e escreve pelo `name`
@@ -208,7 +208,7 @@
 	}
 
 	/** Erros dos campos de "Mais campos" abrem a seção. */
-	const MORE_FIELDS = ['reading', 'note', 'tags', 'image', 'audio', 'deck'];
+	const MORE_FIELDS = ['reading', 'note', 'tags', 'image', 'audio'];
 
 	/**
 	 * Modo edit, depois do ?/edit: a frase do cartão e o deck, só se mudaram. Devolve os
@@ -314,6 +314,16 @@
 		{#if !editing}
 			<LanguageSwitch bind:value={chosen} bind:open={langOpen} {options} {native} ui={uiLanguage} />
 		{/if}
+		{#key chosen}
+			<WordDeckField
+				variant="chip"
+				formId="{pfx}-form"
+				decks={decks.list}
+				value={edit?.deckId ?? null}
+				loading={decks.loading}
+				error={errors.deck}
+			/>
+		{/key}
 	{/snippet}
 	{#snippet hint()}
 		{#if !editing}<kbd>⌥L</kbd> idioma ·{/if} <kbd>Tab</kbd> campo
@@ -387,7 +397,7 @@
 				{/if}
 				<MoreFields
 					bind:open={more}
-					pills={['leitura', 'nota', 'tags', 'imagem', 'áudio', 'baralho']}
+					pills={['leitura', 'nota', 'tags', 'imagem', 'áudio']}
 				>
 					<WordField
 						field="reading"
@@ -426,14 +436,6 @@
 							error={errors.audio}
 						/>
 					</div>
-					{#key chosen}
-						<WordDeckField
-							decks={decks.list}
-							value={edit?.deckId ?? null}
-							loading={decks.loading}
-							error={errors.deck}
-						/>
-					{/key}
 				</MoreFields>
 			</form>
 		{/key}{/key}
@@ -452,6 +454,7 @@
 	/* Centrado na linha do input grande (52px). */
 	.ai-fill {
 		flex: none;
+		white-space: nowrap;
 		height: 30px;
 		margin-top: 11px;
 		padding: 0 10px;

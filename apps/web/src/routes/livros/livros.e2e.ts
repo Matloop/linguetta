@@ -4,8 +4,8 @@ import { strToU8, unzipSync, strFromU8, zipSync } from 'fflate';
 import { koHash } from '../../lib/blend/kohash.ts';
 import { login, SUPABASE_URL } from '../../e2e/auth.ts';
 
-// Envio de um EPUB pequeno pela tela, configuração e lista. Com LIVROS_E2E_IA=1 também gera
-// o blend com a IA de verdade (Groq/Gemini do .env) e confere os links #lb: no EPUB baixado.
+// Envio de um EPUB pequeno pela tela, configuração, geração com o léxico (sem IA) e lista.
+// Precisa do léxico pt-it (v2) em lib/blend/lexicon/.
 
 const PARAGRAPHS = [
 	[
@@ -67,7 +67,7 @@ ${PARAGRAPHS[i].map((p) => `<p>${p}</p>`).join('\n')}
 }
 
 test('envia um EPUB, configura o blend e vê o livro na lista', async ({ page }) => {
-	test.setTimeout(process.env.LIVROS_E2E_IA ? 240_000 : 60_000);
+	test.setTimeout(60_000);
 	await login(page, undefined, ['it']);
 	await page.goto('/livros');
 	await expect(page.getByRole('heading', { name: 'Nenhum livro ainda' })).toBeVisible();
@@ -92,24 +92,43 @@ test('envia um EPUB, configura o blend e vê o livro na lista', async ({ page })
 	await page.getByRole('option', { name: 'A chuva' }).click();
 	await expect(page.getByTestId('resumo')).toHaveText(/^1 capítulo, \d+ palavras$/);
 
-	if (process.env.LIVROS_E2E_IA) {
-		await page.getByTestId('gerar').click();
-		const ready = page.getByRole('dialog', { name: 'Seu livro está pronto' });
-		await expect(ready).toBeVisible({ timeout: 200_000 });
-		const href = await ready.getByRole('link', { name: 'Baixar EPUB' }).getAttribute('href');
-		const res = await page.request.get(href!);
-		expect(res.ok()).toBe(true);
-		expect(res.headers()['content-disposition'] ?? '').toContain('.epub');
-		const files = unzipSync(new Uint8Array(await res.body()));
-		const c1 = strFromU8(files['OEBPS/c1.xhtml']);
-		const c2 = strFromU8(files['OEBPS/c2.xhtml']);
-		// Fora do intervalo fica igual; dentro ganha links #lb:.
-		expect(c1).not.toContain('#lb:');
-		const links = [...c2.matchAll(/<a href="#lb:([^"]*)">([^<]*)<\/a>/g)];
-		console.log(`blend: ${links.length} links`, links.map((m) => `${m[2]} ← ${m[1]}`));
-		expect(links.length).toBeGreaterThan(0);
-		expect(c2).toContain('<h1>A chuva</h1>');
-	}
+	// Sem léxico para o par, a tela diz e não gera (nada de plano B com IA).
+	await page.getByRole('combobox', { name: 'Língua do livro' }).click();
+	await page.getByRole('option', { name: 'Espanhol' }).click();
+	await expect(page.getByTestId('sem-par')).toContainText('Ainda não temos o par');
+	await expect(page.getByTestId('gerar')).toBeDisabled();
+	await page.getByRole('combobox', { name: 'Língua do livro' }).click();
+	await page.getByRole('option', { name: 'Português', exact: true }).click();
+
+	// O "quanto" vai até 50% em qualquer livro; a tela mostra o rigor que o % pede e o que foi liberado.
+	const quanto = page.getByLabel('Quanto misturar');
+	await expect(quanto).toHaveAttribute('max', '50');
+	await expect(page.getByTestId('rigor')).toContainText('Rigor:');
+	await quanto.fill('50');
+	await expect(page.getByTestId('liberado')).toContainText('Liberado para chegar a 50%');
+	await quanto.fill('1');
+	await expect(page.getByTestId('liberado')).toHaveCount(0);
+	await expect(page.getByTestId('rigor-nivel')).toHaveText('máximo');
+	await quanto.fill('10');
+
+	// Gerar é um pedido só.
+	await page.getByTestId('gerar').click();
+	const ready = page.getByRole('dialog', { name: 'Seu livro está pronto' });
+	await expect(ready).toBeVisible({ timeout: 20_000 });
+	await expect(page.getByTestId('resultado')).toContainText('das palavras (pedido:');
+	await expect(page.getByTestId('resultado-rigor')).toContainText('Rigor:');
+	const href = await ready.getByRole('link', { name: 'Baixar EPUB' }).getAttribute('href');
+	const res = await page.request.get(href!);
+	expect(res.ok()).toBe(true);
+	expect(res.headers()['content-disposition'] ?? '').toContain('.epub');
+	const files = unzipSync(new Uint8Array(await res.body()));
+	const c1 = strFromU8(files['OEBPS/c1.xhtml']);
+	const c2 = strFromU8(files['OEBPS/c2.xhtml']);
+	// Fora do intervalo fica igual; dentro ganha links #lb:.
+	expect(c1).not.toContain('#lb:');
+	const links = [...c2.matchAll(/<a href="#lb:([^"]*)">([^<]*)<\/a>/g)];
+	expect(links.length).toBeGreaterThan(0);
+	expect(c2).toContain('<h1>A chuva</h1>');
 
 	await page.getByRole('button', { name: 'Fechar' }).click();
 	const book = page.getByTestId('livro');
@@ -168,8 +187,7 @@ test('aparelho lista o livro, baixa pela URL assinada e manda a posição', asyn
 	});
 	await expect(page.getByRole('dialog', { name: 'Configure a mistura' })).toBeVisible({ timeout: 15_000 });
 	await page.getByRole('button', { name: 'Fechar' }).click();
-	const href = await page.getByTestId('livro').getByRole('link', { name: 'Manhãs no morro' }).getAttribute('href');
-	const bookId = href!.split('/').at(-1)!;
+	const bookId = (await page.getByTestId('livro').getAttribute('data-id'))!;
 	const s = await sessionOf(page);
 	const user = { apikey: process.env.PUBLIC_SUPABASE_PUBLISHABLE_KEY!, authorization: `Bearer ${s.token}` };
 	const path = `${s.userId}/${bookId}/v1.epub`;
@@ -251,4 +269,35 @@ test('aparelho lista o livro, baixa pela URL assinada e manda a posição', asyn
 	await expect(page.getByText('Sai do aparelho no próximo sync')).toBeVisible();
 	const off = await (await request.get('/api/v1/sync/books?protocol=1', { headers })).json();
 	expect(off.books).toHaveLength(0);
+});
+
+test('Gerar abre o modal na própria lista; Ler abre um livro sem blend', async ({ page }) => {
+	test.setTimeout(60_000);
+	await login(page, undefined, ['it']);
+	await page.goto('/livros');
+	await page.getByTestId('enviar-epub').click();
+	await page.getByTestId('arquivo-epub').setInputFiles({
+		name: 'manhas.epub',
+		mimeType: 'application/epub+zip',
+		buffer: Buffer.from(makeEpub())
+	});
+	await expect(page.getByRole('dialog', { name: 'Configure a mistura' })).toBeVisible({ timeout: 15_000 });
+	await page.getByRole('button', { name: 'Fechar' }).click();
+	await expect(page.getByRole('dialog')).toHaveCount(0);
+
+	// Sem blend: Gerar abre o modal aqui, sem trocar de tela.
+	await page.getByTestId('livro').getByRole('button', { name: 'Gerar' }).click();
+	await expect(page.getByRole('dialog', { name: 'Configure a mistura' })).toBeVisible();
+	await expect(page).toHaveURL(/\/livros$/);
+	await page.getByRole('button', { name: 'Fechar' }).click();
+	await expect(page.getByRole('dialog')).toHaveCount(0);
+
+	// Ler: escolhe qualquer livro da lista e abre o original (ainda sem blend).
+	await page.getByRole('button', { name: 'Ler', exact: true }).click();
+	await page
+		.getByRole('navigation', { name: 'Seus livros' })
+		.getByRole('link', { name: 'Manhãs no morro' })
+		.click();
+	await expect(page).toHaveURL(/\/livros\/[0-9a-f-]{36}\/ler$/);
+	await expect(page.getByRole('heading', { name: 'Manhãs no morro' })).toBeVisible();
 });

@@ -6,7 +6,7 @@ import type { RequestHandler } from './$types';
 
 export const config: Config = { maxDuration: 60, memory: 2048 };
 
-/** Monta a versão nova com os capítulos prontos do intervalo (substitui a anterior). */
+/** Gera o livro com blend do léxico nos capítulos do intervalo (substitui a versão anterior). */
 export const POST: RequestHandler = async ({ locals, params }) => {
 	const user = await locals.getUser();
 	if (!user) return json({ message: 'Entre de novo.' }, { status: 401 });

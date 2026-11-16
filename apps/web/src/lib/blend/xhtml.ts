@@ -199,6 +199,8 @@ export interface XhtmlDoc {
 	 * fora das faixas já usadas. null se não dá para trocar.
 	 */
 	locate(para: number, form: string, lang: string, taken?: { start: number; end: number }[]): { start: number; end: number } | null;
+	/** O trecho [start, end) do parágrafo cabe inteiro num só nó de texto editável, alinhado às unidades. */
+	editable(para: number, start: number, end: number): boolean;
 	/** O documento com as trocas; o resto sai como entrou. */
 	render(replacements: readonly Replacement[]): string;
 }
@@ -285,6 +287,10 @@ export function parseXhtml(xml: string): XhtmlDoc {
 	return {
 		paragraphs,
 		heading: squash(heading) || squash(decodeUnits(title).map((u) => u.text).join('')),
+		editable(para, start, end) {
+			const seg = paragraphs[para]?.segments.find((s) => s.editable && s.start <= start && end <= s.end);
+			return !!seg && seg.offsets.includes(start) && (end === seg.end || seg.offsets.includes(end));
+		},
 		locate(para, form, lang, taken = []) {
 			const p = paragraphs[para];
 			if (!p || !form.trim()) return null;
@@ -294,11 +300,7 @@ export function parseXhtml(xml: string): XhtmlDoc {
 				if (!hit) return null;
 				const start = from + hit.index;
 				const end = start + hit.length;
-				const seg = p.segments.find((s) => s.editable && s.start <= start && end <= s.end);
-				const aligned =
-					seg &&
-					seg.offsets.includes(start) &&
-					(end === seg.end || seg.offsets.includes(end));
+				const aligned = this.editable(para, start, end);
 				const free = taken.every((r) => end <= r.start || start >= r.end);
 				if (aligned && free) return { start, end };
 				from = start + Math.max(1, hit.length);

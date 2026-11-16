@@ -1,10 +1,11 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
-	import { inRange, rangeProgress, rangeState } from '#lib/blend/book-ui.ts';
+	import { rangeSummary, type BookPayload } from '#lib/blend/book-ui.ts';
 	import { languagePair } from '#lib/blend/filename.ts';
 	import { languageLabel } from '#lib/languages.ts';
 	import Icon from '#lib/ui/Icon.svelte';
 	import Mark from '#lib/ui/Mark.svelte';
+	import Popover from '#lib/ui/Popover.svelte';
 	import { toast } from '#lib/ui/app-state.svelte.ts';
 	import { postAction } from '#lib/ui/post-action.ts';
 	import BlendWizard from './BlendWizard.svelte';
@@ -12,7 +13,14 @@
 
 	let { data }: PageProps = $props();
 
-	let wizardOpen = $state(false);
+	/** Modal do blend aberto aqui na lista: `initial` é o livro (null = envio de um novo). */
+	let wizard = $state<{ initial: BookPayload | null } | null>(null);
+
+	async function editBook(id: string) {
+		const res = await fetch(resolve('/livros/[id]', { id })).catch(() => null);
+		if (!res?.ok) return toast('Não deu para abrir o livro agora.');
+		wizard = { initial: (await res.json()) as BookPayload };
+	}
 
 	async function setDevice(id: string, on: boolean) {
 		const r = await postAction('device', { id, on: String(on) });
@@ -33,25 +41,55 @@
 </svelte:head>
 
 {#snippet uploader()}
-	<button class="btn btn-primary" type="button" aria-haspopup="dialog" onclick={() => (wizardOpen = true)} data-testid="enviar-epub"
-		><Icon name="upload" size="sm" />Enviar EPUB</button
+	<button
+		class="btn btn-primary"
+		type="button"
+		aria-haspopup="dialog"
+		onclick={() => (wizard = { initial: null })}
+		data-testid="enviar-epub"><Icon name="upload" size="sm" />Enviar EPUB</button
 	>
 {/snippet}
 
-<BlendWizard
-	open={wizardOpen}
-	studyLanguages={data.studyLanguages}
-	active={data.active}
-	userId={data.userId}
-	onclose={() => (wizardOpen = false)}
-/>
+{#if wizard}
+	<BlendWizard
+		initial={wizard.initial}
+		studyLanguages={data.studyLanguages}
+		active={data.active}
+		userId={data.userId}
+		onclose={() => (wizard = null)}
+	/>
+{/if}
 
 <div class="ph">
 	<div>
 		<h1>Livros</h1>
 		{#if data.books.length}<p>Livros com blend: algumas palavras trocadas pelo idioma que você estuda.</p>{/if}
 	</div>
-	{#if data.books.length}<div class="ph-acts">{@render uploader()}</div>{/if}
+	{#if data.books.length}
+		<div class="ph-acts">
+			<Popover label="Ler um livro" width={320}>
+				{#snippet trigger({ toggle, expanded, id })}
+					<button
+						class="btn btn-ghost"
+						type="button"
+						aria-haspopup="dialog"
+						aria-expanded={expanded}
+						aria-controls={id}
+						onclick={toggle}><Icon name="play" size="sm" />Ler</button
+					>
+				{/snippet}
+				<nav class="menu" aria-label="Seus livros">
+					{#each data.books as b (b.id)}
+						<a href={resolve('/livros/[id]/ler', { id: b.id })}>
+							<span class="menu-title">{b.title}</span>
+							{#if b.author}<span class="menu-sub">{b.author}</span>{/if}
+						</a>
+					{/each}
+				</nav>
+			</Popover>
+			{@render uploader()}
+		</div>
+	{/if}
 </div>
 
 {#if data.books.length === 0}
@@ -69,13 +107,10 @@
 {:else}
 	<ul class="books" aria-label="Seus livros">
 		{#each data.books as b (b.id)}
-			{@const total = inRange(b.chapters, b.range_from, b.range_to).length}
-			{@const pct = Math.round(rangeProgress(b.chapters, b.range_from, b.range_to) * 100)}
-			{@const ready = pct >= 100 && total > 0}
-			<li class="tile lift book" data-testid="livro">
+			<li class="tile lift book" data-testid="livro" data-id={b.id}>
 				<div class="top">
 					<div class="txt">
-						<a class="title" href={resolve('/livros/[id]', { id: b.id })}>{b.title}</a>
+						<button class="title" type="button" onclick={() => editBook(b.id)}>{b.title}</button>
 						<span class="meta">
 							{#if b.author}{b.author} · {/if}<span
 								title="{languageLabel(b.book_language, 'pt')} com {languageLabel(b.language, 'pt')}"
@@ -93,34 +128,24 @@
 						/>
 					</label>
 				</div>
-				<div class="state">
-					<span class="meta" data-testid="estado">{rangeState(b.chapters, b.range_from, b.range_to)}</span>
-					<span
-						class="bar"
-						role="progressbar"
-						aria-label="Capítulos prontos"
-						aria-valuemin={0}
-						aria-valuemax={100}
-						aria-valuenow={pct}><i style:width="{pct}%"></i></span
-					>
-				</div>
+				<span class="meta" data-testid="estado"
+					>{rangeSummary(b.chapters, b.range_from, b.range_to)} · {b.current_version
+						? 'Blend gerado'
+						: 'Sem blend ainda'}</span
+				>
 				<div class="acts">
+					<a class="btn btn-soft" href={resolve('/livros/[id]/ler', { id: b.id })}
+						><Icon name="play" size="sm" />Ler</a
+					>
 					{#if b.current_version}
-						<a class="btn btn-soft" href={resolve('/livros/[id]/ler', { id: b.id })}
-							><Icon name="play" size="sm" />Ler</a
-						>
 						<a
 							class="btn btn-ghost"
 							href={resolve('/livros/[id]/baixar', { id: b.id })}
 							data-sveltekit-reload><Icon name="down" size="sm" />Baixar EPUB</a
 						>
 					{/if}
-					<a class="btn btn-ghost" href={resolve('/livros/[id]', { id: b.id })}
-						><Icon name="sparks" size="sm" />{ready && b.current_version
-							? 'Ajustar'
-							: pct > 0
-								? 'Continuar'
-								: 'Gerar'}</a
+					<button class="btn btn-ghost" type="button" aria-haspopup="dialog" onclick={() => editBook(b.id)}
+						><Icon name="sparks" size="sm" />{b.current_version ? 'Ajustar' : 'Gerar'}</button
 					>
 					<span class="sp"></span>
 					<button
@@ -140,6 +165,30 @@
 	.ph-acts {
 		display: flex;
 		gap: 8px;
+	}
+	.menu {
+		display: flex;
+		flex-direction: column;
+		margin: -6px;
+	}
+	.menu > a {
+		display: flex;
+		flex-direction: column;
+		gap: 2px;
+		padding: 8px 10px;
+		border-radius: var(--r-m);
+		color: var(--ink);
+		text-decoration: none;
+	}
+	.menu > a:hover {
+		background: var(--hover);
+	}
+	.menu-title {
+		overflow-wrap: anywhere;
+	}
+	.menu-sub {
+		font-size: 13px;
+		color: var(--ink-2);
 	}
 	.books {
 		list-style: none;
@@ -164,6 +213,11 @@
 		flex: 1;
 	}
 	.title {
+		padding: 0;
+		border: 0;
+		background: none;
+		text-align: left;
+		cursor: pointer;
 		font: 600 19px/1.3 var(--f-head);
 		color: var(--ink);
 		text-decoration: none;
@@ -185,11 +239,6 @@
 		color: var(--ink-2);
 		white-space: nowrap;
 		cursor: pointer;
-	}
-	.state {
-		display: flex;
-		flex-direction: column;
-		gap: 8px;
 	}
 	.acts {
 		display: flex;

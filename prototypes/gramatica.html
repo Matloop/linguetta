@@ -214,6 +214,7 @@ textarea.field { height: auto; min-height: 84px; padding: 14px 16px; resize: ver
 		<button data-v="unidade" aria-pressed="false">Unidade: artigos definidos</button>
 		<button data-v="revisao" aria-pressed="false">Cartão-regra no Revisar</button>
 		<button data-v="modelos" aria-pressed="false">Modelos de cartão</button>
+		<button data-v="ref" aria-pressed="false">Referência</button>
 	</div>
 	<span class="sp"></span>
 	<div class="seg" id="tema">
@@ -285,6 +286,10 @@ const STEPS = [
 		['Porque <i>occhi</i> começa com vogal', true, 'Isso. No singular seria <i>l’occhio</i>; no plural, <i>gli</i>.'],
 		['Porque são dois olhos', false, 'Plural sim, mas <i>i pennelli</i> também é plural e usa <i>i</i>. O que <i>occhi</i> tem de diferente?'],
 		['Porque é parte do corpo', false, 'Não: <i>i piedi</i>, <i>i capelli</i>… O segredo está na primeira letra.'] ] },
+	{ k: 'expl', n: 1, title: 'Um artigo que escuta a palavra seguinte', text: 'Em português, o artigo só depende do gênero e do número: <i>o, a, os, as</i>. Em italiano há uma terceira coisa: <b>o som com que começa a palavra seguinte</b>. Por isso existem seis formas para o nosso “o/a”.', ex: [['il ritratto', 'o retrato'], ['lo specchio', 'o espelho'], ['l’atelier', 'o ateliê']] },
+	{ k: 'expl', n: 2, title: 'Masculino: il, lo, l’', text: 'O normal é <i>il</i>. Quando a palavra começa com <b>s + consoante</b>, <b>z</b>, <b>gn</b> ou <b>ps</b>, usa-se <i>lo</i>: são sons que não grudam bem em <i>il</i>. Antes de <b>vogal</b>, <i>lo</i> perde o <i>o</i> e vira <i>l’</i>.', ex: [['il quadro, il conte', 'consoante simples'], ['lo studente, lo zaino, lo gnomo', 's + consoante, z, gn'], ['l’occhio, l’attore', 'vogal']] },
+	{ k: 'expl', n: 3, title: 'Feminino: la, l’', text: 'O feminino é mais simples: <i>la</i> antes de consoante (qualquer uma, até s + consoante) e <i>l’</i> antes de vogal.', ex: [['la porta, la luce', 'consoante'], ['la sposa, la zia', 's + consoante e z não mudam nada no feminino'], ['l’arte, l’amica', 'vogal']] },
+	{ k: 'expl', n: 4, title: 'Plural: i, gli, le', text: 'Cada forma do singular tem a sua no plural. <i>Il</i> vira <i>i</i>; <i>lo</i> e o <i>l’</i> masculino viram <i>gli</i>. No feminino tudo vira <i>le</i>, e o apóstrofo some.', ex: [['il pennello → i pennelli', 'il → i'], ['lo specchio → gli specchi', 'lo → gli'], ['l’occhio → gli occhi', 'l’ masc. → gli'], ['la finestra → le finestre · l’arte → le arti', 'fem. → le']] },
 	{ k: 'sheet' },
 	{ k: 'choice', kind: 'Entender', q: '<i>l’arte</i>', sub: 'Masculino ou feminino?', opts: [
 		['Masculino', false], ['Feminino', false], ['Pelo artigo não dá para saber', true] ],
@@ -328,6 +333,7 @@ function render() {
 	if (view === 'trilha') return renderTrail();
 	if (view === 'revisao') return renderReview();
 	if (view === 'modelos') return renderModels();
+	if (view === 'ref') return renderRef();
 	renderStep();
 }
 
@@ -340,7 +346,7 @@ function renderTrail() {
 		b.units.forEach(([t, ep], k) => {
 			const cur = b.no === 1 && k === 0;
 			const warn = b.no === 3 && k === 1 ? '<span class="warn">Antes: Essere e avere</span>' : '';
-			h += `<button class="unit-row ${cur ? 'cur' : ''}" data-open="${cur ? 1 : 0}"><span class="n">${k + 1}</span><span class="t"><b>${t}</b>${ep ? `<span>${ep}</span>` : ''}</span>${warn}</button>`;
+			h += `<button class="unit-row ${cur ? 'cur' : ''}" data-open="${cur ? 1 : 0}"><span class="n">${k + 1}</span><span class="t"><b>${t}</b>${ep ? `<span>${ep}</span>` : ''}</span>${warn}${cur ? `<span class="btn btn-ghost btn-sm" data-ref="1">Referência</span>` : ''}</button>`;
 		});
 		h += '</div></div>';
 	}
@@ -352,6 +358,7 @@ function renderTrail() {
 	h += '</aside></div>';
 	root.innerHTML = h;
 	root.querySelectorAll('[data-open="1"]').forEach((b) => (b.onclick = () => go('unidade')));
+	root.querySelectorAll('[data-ref]').forEach((b) => (b.onclick = (e) => { e.stopPropagation(); go('ref'); }));
 	root.querySelectorAll('[data-goto]').forEach((b) => (b.onclick = () => go(b.dataset.goto)));
 }
 
@@ -370,7 +377,7 @@ function bindNext() { const n = $('#next'); if (n) n.onclick = next; }
 
 function renderStep() {
 	const s = STEPS[i];
-	({ warm, episode, discover, sheet, choice, row, type, compose, end })[s.k](s);
+	({ warm, episode, discover, expl, sheet, choice, row, type, compose, end })[s.k](s);
 }
 
 function warm() {
@@ -407,8 +414,15 @@ function discover(s) {
 	bindNext();
 }
 
+function expl(s) {
+	shell(`<p class="kicker">Explicação · ${s.n} de 4</p><h2>${s.title}</h2>
+		<p class="inst" style="font-size:16px;line-height:1.6">${s.text}</p>
+		<div class="sheet"><table class="tbl">${s.ex.map(([a, b]) => `<tr><td class="ex" style="font-size:17px">${a}</td><td style="color:var(--ink-3);font-size:13.5px">${b}</td></tr>`).join('')}</table></div>`, foot());
+	bindNext();
+}
+
 function sheet() {
-	shell(`<p class="kicker">Ficha</p><h2>O artigo definido olha para o som seguinte</h2>
+	shell(`<p class="kicker">Resumo · <button class="btn btn-ghost btn-sm" style="height:24px;padding:0 6px" data-goto="ref">abrir a referência completa</button></p><h2>O artigo definido olha para o som seguinte</h2>
 		<div class="sheet"><table class="tbl">
 			<tr><th></th><th>Antes de…</th><th>Singular</th><th>Plural</th><th>Exemplo</th></tr>
 			<tr><td rowspan="3" style="color:var(--ink-3);font-size:13px">masc.</td><td>consoante</td><td class="f">il</td><td class="f">i</td><td class="ex">il quadro → i quadri</td></tr>
@@ -420,6 +434,7 @@ function sheet() {
 		<div class="pt-box"><b>Em português</b>Nosso artigo só muda com gênero e número: <i>o, a, os, as</i>. Em italiano muda também com a <b>primeira letra da palavra seguinte</b>. Se ela muda, o artigo muda: <i>lo studente</i>, mas <i>il bravo studente</i>.</div>
 		<div class="trap"><b>Armadilha de brasileiro</b><i>Il zaino</i>, <i>i studenti</i>, <i>i occhi</i> soam naturais para nós e estão errados. E o gênero nem sempre bate: <i>il colore</i>, <i>il fiore</i>, <i>il latte</i> são masculinos.</div>
 		</div>`, foot());
+	root.querySelector('[data-goto="ref"]').onclick = () => go('ref');
 	bindNext();
 }
 
@@ -535,6 +550,7 @@ function renderReview() {
 		<input class="field" id="in" placeholder="Artigo" autocomplete="off" ${solved ? 'disabled' : ''} value="${solved ? st.last : ''}">
 		${state === 'hint' ? `<div class="hint"><b>Pista.</b> ${it.hint} Tente de novo.</div>` : ''}
 		${solved ? `<div class="reveal">${state === 'right' ? (st.tries ? 'Certo, depois da pista.' : 'Certo.') : `Resposta: <i>${it.a}</i>.`}</div>
+		<button class="btn btn-ghost btn-sm" data-goto="ref" style="margin-top:8px">Ver a regra completa</button>
 		<div class="grades"><button class="btn btn-soft">Errei<small>10 min</small></button><button class="btn btn-soft">Difícil<small>${st.tries ? '1 d' : '2 d'}</small></button><button class="btn btn-soft">Bom<small>4 d</small></button><button class="btn btn-soft">Fácil<small>9 d</small></button></div>` :
 		`<div style="display:flex;justify-content:flex-end;margin-top:14px"><button class="btn btn-primary" id="chk">Conferir</button></div>`}
 	</div><p class="note">Um cartão por regra. A cada revisão a frase muda (banco revisado, ${BANK.length} de ~25 neste protótipo).${solved ? ' Escolha uma nota para ver a próxima frase da mesma regra.' : ''}</p></div>`;
@@ -553,6 +569,7 @@ function renderReview() {
 		$('#chk').onclick = check;
 	} else {
 		root.querySelectorAll('.grades .btn').forEach((b) => (b.onclick = () => { bankIx++; st = {}; renderReview(); }));
+		root.querySelector('[data-goto="ref"]').onclick = () => go('ref');
 	}
 }
 
@@ -581,6 +598,42 @@ function renderModels() {
 		<p class="lead">Errou: pista e outra chance, depois o verso. Notas: Errei, Difícil, Bom, Fácil.</p>
 		${MODELS.map(([n, d, f, b]) => `<div class="model"><div class="meta"><b>${n}</b><span>${d}</span></div>
 			<div class="face"><small>Frente</small>${f}</div><div class="face"><small>Verso</small>${b}</div></div>`).join('')}</div>`;
+}
+
+
+// ───────────────────────── referência da unidade ─────────────────────────
+// Texto longo de consulta (o "grammar book"), aberto pela trilha, pelo resumo e pelo verso do cartão.
+const REF = [
+	['O que muda o artigo', '<p>O artigo definido italiano concorda em <b>gênero</b> e <b>número</b> com o substantivo, como em português, e também se adapta ao <b>som inicial da palavra que vem logo depois</b>. Essa palavra costuma ser o substantivo, mas pode ser um adjetivo ou um número: <i>lo studente</i>, mas <i>il bravo studente</i>; <i>gli anni</i>, mas <i>i due anni</i>.</p>'],
+	['Tabela completa', `<table class="tbl"><tr><th></th><th>Antes de…</th><th>Sing.</th><th>Pl.</th><th>Exemplos</th></tr>
+		<tr><td>m.</td><td>consoante</td><td class="f">il</td><td class="f">i</td><td class="ex">il libro, i libri · il tavolo, i tavoli</td></tr>
+		<tr><td>m.</td><td>s + consoante</td><td class="f">lo</td><td class="f">gli</td><td class="ex">lo specchio, gli specchi · lo studente, gli studenti</td></tr>
+		<tr><td>m.</td><td>z</td><td class="f">lo</td><td class="f">gli</td><td class="ex">lo zaino, gli zaini · lo zio, gli zii</td></tr>
+		<tr><td>m.</td><td>gn, ps, pn, x, y</td><td class="f">lo</td><td class="f">gli</td><td class="ex">lo gnomo · lo psicologo · lo yogurt · lo xilofono</td></tr>
+		<tr><td>m.</td><td>vogal</td><td class="f">l’</td><td class="f">gli</td><td class="ex">l’occhio, gli occhi · l’attore, gli attori</td></tr>
+		<tr><td>f.</td><td>consoante</td><td class="f">la</td><td class="f">le</td><td class="ex">la porta, le porte · la zia, le zie</td></tr>
+		<tr><td>f.</td><td>vogal</td><td class="f">l’</td><td class="f">le</td><td class="ex">l’arte, le arti · l’amica, le amiche</td></tr></table>`],
+	['Casos especiais', `<p><b>Semivogal <i>i</i>:</b> <i>iogurt</i>, <i>iena</i> começam com som de consoante e pedem <i>lo</i>: <i>lo iogurt</i>, <i>gli iogurt</i>.</p>
+		<p><b>H mudo:</b> em palavras estrangeiras o h não soa e vale a vogal seguinte: <i>l’hotel</i>, <i>gli hotel</i>.</p>
+		<p><b>W estrangeiro:</b> depende da pronúncia: <i>il weekend</i>, <i>il whisky</i>.</p>
+		<p><b><i>Gli dèi</i>:</b> o plural de <i>il dio</i> é irregular.</p>
+		<p><b><i>Pneumatico</i>:</b> na fala aparece <i>il pneumatico</i>; o padrão recomenda <i>lo pneumatico</i>.</p>`],
+	['Quando o italiano usa artigo e o português não (e vice-versa)', `<p>Com <b>possessivos</b> o artigo é a regra (<i>la mia casa</i>), mas cai com parentes no singular e sem adjetivo: <i>mia madre</i>, <i>tuo fratello</i>. Volta no plural ou com adjetivo: <i>le mie sorelle</i>, <i>la mia cara madre</i>. Com <i>loro</i> fica sempre: <i>la loro madre</i>.</p>
+		<p>Com <b>nomes de pessoa</b> o padrão é sem artigo (<i>Matteo entra</i>), ao contrário do “o Matteo” de boa parte do Brasil. No norte, na fala, aparece <i>la Giulia</i>.</p>
+		<p>Com <b>países e regiões</b> há artigo, como em português: <i>l’Italia</i>, <i>il Brasile</i>. Com <b>cidades</b> não: <i>Venezia è bella</i>.</p>`],
+	['Erros típicos de quem fala português', `<table class="tbl"><tr><th>Errado</th><th>Certo</th><th>Por quê</th></tr>
+		<tr><td class="ex">il zaino</td><td class="ex">lo zaino</td><td>z pede lo</td></tr>
+		<tr><td class="ex">i studenti</td><td class="ex">gli studenti</td><td>plural de lo é gli</td></tr>
+		<tr><td class="ex">i occhi</td><td class="ex">gli occhi</td><td>vogal → gli</td></tr>
+		<tr><td class="ex">le colori</td><td class="ex">i colori</td><td>colore é masculino</td></tr>
+		<tr><td class="ex">la mia madre</td><td class="ex">mia madre</td><td>parente no singular</td></tr>
+		<tr><td class="ex">l’amiche</td><td class="ex">le amiche</td><td>no plural o apóstrofo some</td></tr></table>`],
+	['Gênero que não bate com o português', '<p>Masculinos em italiano: <i>il colore</i>, <i>il fiore</i>, <i>il latte</i>, <i>il sangue</i>, <i>il dolore</i>, <i>il ponte</i>, <i>il mare</i>. Femininos: <i>la fine</i> (o fim), <i>l’origine</i>. Na dúvida, aprenda o substantivo já com o artigo.</p>'],
+];
+function renderRef() {
+	root.innerHTML = `<div class="models" style="max-width:720px"><p class="kicker">Referência · Bloco 1 · unidade 1</p><h1>Artigos definidos</h1>
+		<p class="lead">Tudo da unidade num lugar só, para consultar quando quiser. Abre pela trilha, pelo resumo e pelo verso dos cartões.</p>
+		${REF.map(([t, h]) => `<section style="margin:22px 0"><h2 style="font-size:18px;margin-bottom:8px">${t}</h2><div style="font-size:15px;line-height:1.65;color:var(--ink-2)">${h}</div></section>`).join('')}</div>`;
 }
 
 // ───────────────────────── controles ─────────────────────────

@@ -1,4 +1,5 @@
 import { error, json } from '@sveltejs/kit';
+import { parseLanguage } from '#lib/languages.ts';
 import { loadReviewSettings } from '#lib/server/settings.ts';
 import { parseLemma, parseWordSave } from '#lib/reader/word-input.ts';
 import {
@@ -14,7 +15,7 @@ const NO_STORE = { headers: { 'Cache-Control': 'no-store' } };
 
 /**
  * Palavra do blend no leitor web.
- * - `tocar`: já no banco? soma um visto e devolve como ela está (`bank`), ou `bank: null`.
+ * - `tocar`: já no banco (no idioma pedido ou no do livro)? soma um visto e devolve como ela está (`bank`), ou `bank: null`.
  * - `salvar`: cria (ou acha) o item no idioma do livro e grava o encontro desta página.
  * - `desfazer`: apaga o item que acabou de nascer desse salvar.
  */
@@ -36,7 +37,7 @@ export const POST: RequestHandler = async ({ locals, params, request }) => {
 		const lemma = parseLemma(body.lemma);
 		if (!lemma) error(400, 'Palavra inválida.');
 		const { clock } = await loadReviewSettings(locals.supabase, user.id);
-		const bank = await touchWord(locals.supabase, book, lemma, now, clock).catch(() => {
+		const bank = await touchWord(locals.supabase, book, lemma, now, clock, parseLanguage(body.language) ?? book.language).catch(() => {
 			error(500, 'Não deu para ver o banco agora.');
 		});
 		return json({ bank }, NO_STORE);

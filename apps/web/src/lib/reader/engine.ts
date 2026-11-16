@@ -3,8 +3,9 @@
 
 import { readBlendLink, type BlendLink } from './blend-link.ts';
 import { Overlayer } from './foliate/overlayer.js';
+import { wordBounds } from './word-hit.ts';
 import { createPaging } from './paging.ts';
-import { rangeSentence } from './sentence.ts';
+import { rangeContext } from './sentence.ts';
 import { quoteFromRange, rangeFor, type Highlight } from './highlights.ts';
 import { FONTS, FONT_STEPS, layoutAttributes, type ReaderSettings } from './settings.ts';
 
@@ -35,13 +36,18 @@ export type BlendTap = {
 export type WordTap = {
 	text: string;
 	sentence: string;
+	/** Frases vizinhas (contexto da consulta). */
+	before: string;
+	after: string;
 	rect: { top: number; bottom: number; left: number; right: number };
 };
 
 export type TextSelection = {
 	spine: number;
-	/** A frase em volta, para o dicionário. */
+	/** A frase em volta (e as vizinhas), para o dicionário. */
 	sentence: string;
+	before: string;
+	after: string;
 	quote: string;
 	prefix: string;
 	suffix: string;
@@ -136,10 +142,8 @@ function flattenToc(
 	return out;
 }
 
-const WORD_CHAR = /[\p{L}\p{M}\p{N}'’-]/u;
-
 /** A palavra sob o ponto (coordenadas do iframe), ou null se o toque caiu fora do texto. */
-function wordAt(doc: Document, x: number, y: number): Range | null {
+function wordAt(doc: Document, x: number, y: number, language: string): Range | null {
 	const caret = (
 		doc as Document & {
 			caretPositionFromPoint?: (x: number, y: number) => { offsetNode: Node; offset: number } | null;
@@ -153,14 +157,9 @@ function wordAt(doc: Document, x: number, y: number): Range | null {
 			})();
 	if (!pos || pos.node.nodeType !== 3) return null;
 	const text = pos.node.nodeValue ?? '';
-	let a = pos.offset;
-	let b = pos.offset;
-	while (a > 0 && WORD_CHAR.test(text[a - 1])) a--;
-	while (b < text.length && WORD_CHAR.test(text[b])) b++;
-	// Hífen ou apóstrofo soltos nas pontas não fazem parte da palavra.
-	while (a < b && /['’-]/.test(text[a])) a++;
-	while (b > a && /['’-]/.test(text[b - 1])) b--;
-	if (a === b) return null;
+	const bounds = wordBounds(text, pos.offset, language);
+	if (!bounds) return null;
+	const { start: a, end: b } = bounds;
 	const range = doc.createRange();
 	range.setStart(pos.node, a);
 	range.setEnd(pos.node, b);
@@ -173,10 +172,14 @@ function wordAt(doc: Document, x: number, y: number): Range | null {
 
 /** Fração da borda que vira página no toque (cada lado). */
 const EDGE = 0.28;
+/** Em tela estreita (celular) as bordas encolhem: sobra mais texto tocável para o dicionário. */
+const edgeFor = (width: number) => (width < 700 ? 0.16 : EDGE);
 
 export async function openBook(
 	container: HTMLElement,
 	file: Blob,
+	/** Língua do livro (a do cadastro; a do EPUB erra com frequência). */
+	bookLanguage: string,
 	events: EngineEvents
 ): Promise<Engine> {
 	await import('./foliate/view.js');
@@ -198,7 +201,7 @@ export async function openBook(
 	};
 
 	const lang = view.book.metadata?.language;
-	const language = (Array.isArray(lang) ? lang[0] : lang) ?? '';
+	const language = bookLanguage || ((Array.isArray(lang) ? lang[0] : lang) ?? '');
 
 	// Fração no livro pelo começo da página (a do foliate conta até o fim da página: a
 	// primeira página de um capítulo curto já daria 90%). Mesmo peso por tamanho que ele usa.
@@ -281,7 +284,7 @@ export async function openBook(
 			selectedDoc = doc;
 			events.onSelect({
 				spine: index,
-				sentence: rangeSentence(range, language),
+				...rangeContext(range, language),
 				quote,
 				prefix,
 				suffix,
@@ -306,21 +309,22 @@ export async function openBook(
 			const frame = doc.defaultView?.frameElement?.getBoundingClientRect();
 			const x = (frame?.left ?? 0) + c.clientX;
 			const w = window.innerWidth;
-			if (x >= w * EDGE && x <= w * (1 - EDGE)) {
-				const hit = wordAt(doc, c.clientX, c.clientY);
+			const edge = edgeFor(w);
+			if (x >= w * edge && x <= w * (1 - edge)) {
+				const hit = wordAt(doc, c.clientX, c.clientY, language);
 				if (hit) {
 					const r = hit.getBoundingClientRect();
 					const dx = frame?.left ?? 0;
 					const dy = frame?.top ?? 0;
 					events.onWordTap({
 						text: hit.toString(),
-						sentence: rangeSentence(hit, language),
+						...rangeContext(hit, language),
 						rect: { top: r.top + dy, bottom: r.bottom + dy, left: r.left + dx, right: r.right + dx }
 					});
 					return;
 				}
 			}
-			events.onTap(x < w * EDGE ? 'left' : x > w * (1 - EDGE) ? 'right' : 'middle');
+			events.onTap(x < w * edge ? 'left' : x > w * (1 - edge) ? 'right' : 'middle');
 		});
 	});
 

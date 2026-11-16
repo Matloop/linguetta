@@ -1,25 +1,16 @@
-// Livros com blend no servidor: registrar o EPUB enviado, pedir as candidatas de um pedaço
-// à IA, montar uma versão e apagar. Tudo com o cliente da sessão (RLS do dono); o original
+// Livros com blend no servidor: registrar o EPUB enviado, montar uma versão com o léxico
+// e apagar. Tudo com o cliente da sessão (RLS do dono); o original
 // fica no Storage e é baixado de novo a cada função fria (cache curto entre pedidos).
 
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { countWords } from '@linguetta/language';
-import {
-	buildBlend,
-	chapterDoc,
-	chapterInfos,
-	chapterParts,
-	partWords,
-	wantedCandidates,
-	type Candidate,
-	type ChapterCandidates
-} from '#lib/blend/book.ts';
+import { achievableByStep, blendPreview, bookSampleText, buildBlend, chapterDoc, chapterInfos } from '#lib/blend/book.ts';
+import { detectBookLanguage } from '#lib/blend/detect-language.ts';
 import { EpubError, openEpub, type Epub } from '#lib/blend/epub.ts';
+import { stepFor } from '#lib/blend/ladder.ts';
 import { koHash } from '#lib/blend/kohash.ts';
 import type { Database, Json } from '#lib/database.types.ts';
-import { parseLanguage, type Language } from '#lib/languages.ts';
-import type { AiChain } from './ai.ts';
-import { partRequest } from './book-ai.ts';
+import { languageLabel, parseLanguage, type Language } from '#lib/languages.ts';
+import { loadLexicon } from './lexicon.ts';
 
 type Client = SupabaseClient<Database>;
 export type BookRow = Database['public']['Tables']['books']['Row'];
@@ -44,7 +35,7 @@ export const versionPath = (userId: string, bookId: string, version: number) =>
 
 // ---------- Original ----------
 
-/** Último original aberto: as chamadas por pedaço do mesmo livro reaproveitam. */
+/** Último original aberto: as chamadas seguidas do mesmo livro reaproveitam. */
 let cached: { path: string; size: number; epub: Epub } | null = null;
 
 async function download(supabase: Client, path: string): Promise<Uint8Array> {
@@ -83,7 +74,10 @@ export async function registerBook(
 		await supabase.storage.from(BOOKS_BUCKET).remove([path]);
 		throw e instanceof EpubError ? new BookError(e.message) : e;
 	}
-	const bookLanguage = parseLanguage(epub.language) ?? opts.fallbackLanguage;
+	// O dc:language erra em edições convertidas (vem "en" num livro em português): o texto manda.
+	const declared = parseLanguage(epub.language);
+	const bookLanguage =
+		parseLanguage(detectBookLanguage(bookSampleText(epub), declared)) ?? declared ?? opts.fallbackLanguage;
 	const chapters = chapterInfos(epub, bookLanguage);
 	if (!chapters.some((c) => c.words > 0)) {
 		await supabase.storage.from(BOOKS_BUCKET).remove([path]);
@@ -108,106 +102,78 @@ export async function registerBook(
 	return id;
 }
 
-// ---------- Candidatas ----------
+// ---------- Léxico ----------
 
-export function readCandidates(raw: Json | null, coverage: number): ChapterCandidates | null {
-	const c = raw as unknown as ChapterCandidates | null;
-	if (!c || typeof c !== 'object' || typeof c.parts !== 'number' || !c.byPart) return null;
-	return Math.abs(c.coverage - coverage) < 1e-6 ? c : null;
-}
-
-export interface PartResult {
-	spine: number;
-	part: number;
-	parts: number;
-	done: boolean;
-}
-
-/**
- * Pede à IA o próximo pedaço que falta do capítulo e guarda. Capítulo sem texto fecha
- * na hora. Erro da IA sobe (a rota traduz); o que já veio fica guardado.
- */
-export async function runPart(
-	supabase: Client,
-	ai: AiChain,
-	book: BookRow,
-	spine: number
-): Promise<PartResult> {
-	const { data: row, error } = await supabase
-		.from('book_chapters')
-		.select('spine, status, candidates')
-		.eq('book_id', book.id)
-		.eq('spine', spine)
-		.maybeSingle();
-	if (error) throw new BookError('Não deu para ler o capítulo.', 500);
-	if (!row) throw new BookError('Capítulo não encontrado.', 404);
-
-	const epub = await loadOriginal(supabase, book);
-	const item = epub.spine[spine];
-	const doc = item ? chapterDoc(epub, item) : null;
-	const words = doc ? doc.paragraphs.map((p) => countWords(p.text, book.book_language)) : [];
-	const ranges = chapterParts(words, partWords(book.coverage));
-
-	const stored = readCandidates(row.candidates, book.coverage);
-	let saved: ChapterCandidates =
-		stored && stored.parts === ranges.length
-			? stored
-			: { parts: ranges.length, done: 0, coverage: book.coverage, byPart: {} };
-	const next = ranges.findIndex((_, i) => !saved.byPart[String(i)]);
-	if (next >= 0 && doc) {
-		const [from, to] = ranges[next];
-		const paragraphs = doc.paragraphs
-			.slice(from, to)
-			.map((p, k) => ({ para: from + k, text: p.text }))
-			.filter((p) => countWords(p.text, book.book_language) >= 3);
-		const partWordCount = words.slice(from, to).reduce((a, b) => a + b, 0);
-		let candidates: Candidate[] = [];
-		if (paragraphs.length > 0) {
-			candidates = await ai.json(
-				partRequest({
-					bookLanguage: book.book_language,
-					language: book.language,
-					paragraphs,
-					wanted: wantedCandidates(partWordCount, book.coverage)
-				})
-			);
-		}
-		const byPart = { ...saved.byPart, [String(next)]: candidates };
-		saved = { ...saved, byPart, done: Object.keys(byPart).length };
+/** O léxico do par do livro; sem arquivo para o par, o erro diz isso (não há plano B). */
+async function lexiconOf(book: Pick<BookRow, 'book_language' | 'language'>) {
+	const lexicon = await loadLexicon(book.book_language, book.language);
+	if (!lexicon) {
+		throw new BookError(
+			`Ainda não temos o par ${languageLabel(book.book_language, 'pt')} → ${languageLabel(book.language, 'pt')} para misturar livros.`,
+			422
+		);
 	}
-	const done = saved.done >= saved.parts;
-	const { error: saveError } = await supabase
-		.from('book_chapters')
-		.update({
-			candidates: saved as unknown as Json,
-			status: done ? 'feito' : 'pendente',
-			error: null
-		})
-		.eq('book_id', book.id)
-		.eq('spine', spine);
-	if (saveError) throw new BookError('Não deu para guardar o progresso.', 500);
-	return { spine, part: next < 0 ? saved.parts : next + 1, parts: saved.parts, done };
+	return lexicon;
 }
 
-export async function markChapterError(
+/** Capítulos com texto entre `from` e `to` (índices do spine). */
+function textSpines(epub: Epub, from: number, to: number): number[] {
+	return epub.spine.filter((s) => s.index >= from && s.index <= to && chapterDoc(epub, s)).map((s) => s.index);
+}
+
+export interface Reach {
+	available: boolean;
+	/** Fração das palavras do trecho que cada degrau da escada (ladder.ts) consegue trocar. */
+	steps: number[];
+	preview: {
+		text: string;
+		candidates: {
+			form: string;
+			target: string;
+			lemma: string;
+			translation: string;
+			start: number;
+			tier: number;
+			rank: number;
+		}[];
+	} | null;
+}
+
+/** Alcance por degrau já calculado: livro, trecho e par (o cálculo é a parte cara da prévia). */
+const reachCache = new Map<string, number[]>();
+const REACH_CACHE_MAX = 32;
+
+const reachKey = (book: BookRow, o: { bookLanguage: string; language: string; from: number; to: number }) =>
+	`${book.id}|${book.original_size}|${o.bookLanguage}|${o.language}|${o.from}|${o.to}`;
+
+function rememberReach(key: string, steps: number[]) {
+	reachCache.delete(key);
+	reachCache.set(key, steps);
+	if (reachCache.size > REACH_CACHE_MAX) reachCache.delete(reachCache.keys().next().value!);
+}
+
+/** O que cada degrau da escada entrega no trecho e um parágrafo de amostra. Não grava nada. */
+export async function blendReach(
 	supabase: Client,
-	bookId: string,
-	spine: number,
-	message: string
-) {
-	await supabase
-		.from('book_chapters')
-		.update({ status: 'erro', error: message.slice(0, 500) })
-		.eq('book_id', bookId)
-		.eq('spine', spine);
-}
-
-/** Língua ou cobertura mudou: as candidatas guardadas não servem mais. */
-export async function resetCandidates(supabase: Client, bookId: string) {
-	await supabase
-		.from('book_chapters')
-		.update({ status: 'pendente', candidates: null, error: null })
-		.eq('book_id', bookId);
+	book: BookRow,
+	opts: { bookLanguage: string; language: string; from: number; to: number }
+): Promise<Reach> {
+	const lexicon = await loadLexicon(opts.bookLanguage, opts.language);
+	if (!lexicon) return { available: false, steps: [], preview: null };
+	const epub = await loadOriginal(supabase, book);
+	const spines = textSpines(epub, opts.from, opts.to);
+	const o = { bookLanguage: opts.bookLanguage, language: opts.language, lexicon };
+	const key = reachKey(book, opts);
+	let steps = reachCache.get(key);
+	if (!steps) {
+		steps = achievableByStep(epub, spines, o).fractions;
+	}
+	rememberReach(key, steps);
+	return {
+		available: true,
+		steps,
+		preview: spines.length ? blendPreview(epub, spines[0], o) : null
+	};
 }
 
 // ---------- Versão ----------
@@ -227,43 +193,44 @@ async function bankLemmas(supabase: Client, userId: string, language: string): P
 export interface VersionResult {
 	version: number;
 	links: number;
+	/** Palavras trocadas e palavras dos capítulos do intervalo. */
+	swaps: number;
+	words: number;
+	/** Degrau da escada usado e o que ele liberou (ladder.ts). */
+	step: number;
+	relaxed: string[];
 	size: number;
 	koHash: string;
 }
 
 /**
- * Gera o EPUB inteiro com blend nos capítulos prontos do intervalo e troca a versão atual.
- * As linhas das versões velhas ficam (o koHash de um arquivo antigo no aparelho ainda acha
- * o livro); os arquivos velhos saem do Storage.
+ * Gera o EPUB inteiro, com blend do léxico nos capítulos do intervalo, e troca a versão
+ * atual. As linhas das versões velhas ficam (o koHash de um arquivo antigo no aparelho
+ * ainda acha o livro); os arquivos velhos saem do Storage.
  */
 export async function buildVersion(
 	supabase: Client,
 	userId: string,
 	book: BookRow
 ): Promise<VersionResult> {
-	const [{ data: chapters, error }, { data: versions }, prefer] = await Promise.all([
-		supabase
-			.from('book_chapters')
-			.select('spine, status, candidates')
-			.eq('book_id', book.id)
-			.gte('spine', book.range_from)
-			.lte('spine', book.range_to)
-			.order('spine'),
+	const [lexicon, { data: versions }, prefer, epub] = await Promise.all([
+		lexiconOf(book),
 		supabase.from('book_versions').select('version, path').eq('book_id', book.id),
-		bankLemmas(supabase, userId, book.language)
+		bankLemmas(supabase, userId, book.language),
+		loadOriginal(supabase, book)
 	]);
-	if (error) throw new BookError('Não deu para ler os capítulos.', 500);
-	const ready = (chapters ?? []).flatMap((c) => {
-		const saved = c.status === 'feito' ? readCandidates(c.candidates, book.coverage) : null;
-		return saved ? [{ spine: c.spine, candidates: Object.values(saved.byPart).flat() }] : [];
-	});
-	if (ready.length === 0) throw new BookError('Nenhum capítulo do intervalo está pronto ainda.');
-
-	const epub = await loadOriginal(supabase, book);
-	const { bytes, links } = buildBlend(epub, ready, {
+	const spines = textSpines(epub, book.range_from, book.range_to);
+	if (spines.length === 0) throw new BookError('Nenhum capítulo com texto no intervalo.');
+	// Se a prévia já calculou o alcance deste trecho, a escolha começa no degrau certo.
+	const known = reachCache.get(
+		reachKey(book, { bookLanguage: book.book_language, language: book.language, from: book.range_from, to: book.range_to })
+	);
+	const { bytes, links, swaps, words, step, relaxed } = buildBlend(epub, spines, {
+		startStep: known ? stepFor(known, book.coverage) : 0,
 		bookLanguage: book.book_language,
 		language: book.language,
 		coverage: book.coverage,
+		lexicon,
 		preferWords: prefer
 	});
 	const version = Math.max(0, ...(versions ?? []).map((v) => v.version)) + 1;
@@ -292,7 +259,7 @@ export async function buildVersion(
 	await supabase.from('books').update({ current_version: version }).eq('id', book.id);
 	const old = (versions ?? []).map((v) => v.path).filter((p) => p !== path);
 	if (old.length) await supabase.storage.from(BOOKS_BUCKET).remove(old);
-	return { version, links, size: bytes.length, koHash: hash };
+	return { version, links, swaps, words, step, relaxed, size: bytes.length, koHash: hash };
 }
 
 // ---------- Apagar ----------
@@ -319,12 +286,12 @@ export async function requireBook(supabase: Client, id: string): Promise<BookRow
 	return data;
 }
 
-/** Capítulos para a tela, sem as candidatas (só o contador de pedaços). */
+/** Capítulos para a tela. */
 export async function chapterRows(supabase: Client, bookIds: readonly string[]) {
 	if (bookIds.length === 0) return [];
 	const { data, error } = await supabase
 		.from('book_chapters')
-		.select('book_id, spine, title, words, status, parts:candidates->parts, done:candidates->done')
+		.select('book_id, spine, title, words')
 		.in('book_id', [...bookIds])
 		.order('spine');
 	if (error) throw new BookError('Não deu para ler os capítulos.', 500);
@@ -332,9 +299,6 @@ export async function chapterRows(supabase: Client, bookIds: readonly string[]) 
 		bookId: c.book_id,
 		spine: c.spine,
 		title: c.title,
-		words: c.words,
-		status: c.status as 'pendente' | 'feito' | 'erro',
-		parts: typeof c.parts === 'number' ? c.parts : 0,
-		partsDone: typeof c.done === 'number' ? c.done : 0
+		words: c.words
 	}));
 }

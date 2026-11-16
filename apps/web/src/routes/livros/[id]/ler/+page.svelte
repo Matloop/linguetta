@@ -16,7 +16,7 @@
 	import HighlightBar from './HighlightBar.svelte';
 	import NotesPanel from './NotesPanel.svelte';
 	import DictCard from '#lib/ui/dict/DictCard.svelte';
-	import type { DictQuery } from '#lib/dictionary.ts';
+	import type { DictEntry, DictQuery } from '#lib/dictionary.ts';
 	import type { Anchor } from '#lib/ui/dict/picker.svelte.ts';
 	import type { Highlight, HighlightColor } from '#lib/reader/highlights.ts';
 	import type { TextSelection } from '#lib/reader/engine.ts';
@@ -177,11 +177,17 @@
 		clientId: string;
 		saving: boolean;
 		message: string;
-		saved: { sense: string } | null;
+		/** O trecho já no banco (ou salvo agora): o cartão mostra "No seu banco". */
+		saved: { sense: string; ipa: string; pos: string } | null;
 	};
 	let dict = $state<Dict | null>(null);
 
-	function openDict(text: string, sentence: string, rect: { top: number; bottom: number; left: number; right: number }) {
+	function openDict(
+		text: string,
+		ctx: { sentence: string; before: string; after: string },
+		rect: { top: number; bottom: number; left: number; right: number }
+	) {
+		const { sentence } = ctx;
 		const found = sentence.toLowerCase().indexOf(text.toLowerCase());
 		const line =
 			found >= 0
@@ -200,6 +206,8 @@
 				language: data.book.bookLanguage,
 				text,
 				sentence: sentence || text,
+				before: ctx.before,
+				after: ctx.after,
 				translateSentence: true
 			},
 			line,
@@ -214,6 +222,21 @@
 			message: '',
 			saved: null
 		};
+	}
+
+	/** O dicionário respondeu: o lema já está no banco? Soma um visto e mostra como está. */
+	function checkBank(entry: DictEntry) {
+		const mine = dict;
+		if (!mine) return;
+		post('palavra', {
+			action: 'tocar',
+			language: mine.query.language,
+			lemma: entry.lemma || mine.query.text
+		})
+			.then(({ bank }) => {
+				if (dict === mine && bank) mine.saved = { sense: bank.sense, ipa: bank.ipa, pos: bank.pos };
+			})
+			.catch(() => {});
 	}
 
 	async function saveDict(input: { lemma: string; reading: string; sense: string }) {
@@ -239,7 +262,7 @@
 					percent: Math.round((pos?.bookFraction ?? 0) * 1000) / 10
 				}
 			});
-			d.saved = { sense: input.sense };
+			d.saved = { sense: input.sense, ipa: '', pos: '' };
 		} catch (e) {
 			d.message = e instanceof Error ? e.message : 'Não deu para salvar agora.';
 		} finally {
@@ -441,10 +464,10 @@
 				if (!res.ok) throw new Error(String(res.status));
 				const blob = await res.blob();
 				if (closed || !stage) return;
-				opened = await openBook(stage, new File([blob], 'livro.epub'), {
+				opened = await openBook(stage, new File([blob], 'livro.epub'), data.book.bookLanguage, {
 					onRelocate,
 					onBlendTap,
-					onWordTap: (w) => openDict(w.text, w.sentence, w.rect),
+					onWordTap: (w) => openDict(w.text, w, w.rect),
 					onSelect: (s) => {
 						selection = s;
 						if (s) activeId = null;
@@ -672,7 +695,7 @@
 		<HighlightBar
 			quote={selection.quote}
 			existing={false}
-			ondefine={() => selection && openDict(selection.quote, selection.sentence, selection.rect)}
+			ondefine={() => selection && openDict(selection.quote, selection, selection.rect)}
 			onpick={(c) => createMark(c)}
 			onnote={(text) => createMark('amarelo', text)}
 			onclose={() => {
@@ -688,7 +711,7 @@
 				note={active.note}
 				existing
 				ondefine={() =>
-					openDict(active.quote, active.quote, {
+					openDict(active.quote, { sentence: active.quote, before: '', after: '' }, {
 						top: innerHeight * 0.3,
 						bottom: innerHeight * 0.3 + 20,
 						left: innerWidth / 2 - 40,
@@ -709,10 +732,11 @@
 				query={d.query}
 				line={d.line}
 				anchor={d.anchor}
-				inBank={d.saved ? { sense: d.saved.sense, ipa: '', pos: '' } : null}
+				inBank={d.saved}
 				saving={d.saving}
 				message={d.message}
 				onsave={saveDict}
+				onentry={checkBank}
 				onclose={() => (dict = null)}
 			/>
 		{/key}

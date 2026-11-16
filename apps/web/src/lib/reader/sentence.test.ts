@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { MAX_SENTENCE, sentenceAround } from './sentence';
+import { MAX_SENTENCE, sentenceAround, sentenceContext } from './sentence';
 
 /** Posição do trecho `form` em `text` (a primeira ocorrência). */
 function around(text: string, form: string, locale = 'pt') {
@@ -52,5 +52,29 @@ describe('sentenceAround', () => {
 		const out = around(`${emoji} gatto ${emoji}`, 'gatto');
 		expect([...out].length).toBeLessThanOrEqual(MAX_SENTENCE);
 		expect(out).toContain('gatto');
+	});
+});
+
+describe('sentenceContext', () => {
+	const raw = 'Prima frase. Qui la parola sta. Ultima frase.';
+	test('devolve a frase tocada com a anterior e a seguinte', () => {
+		const start = raw.indexOf('parola');
+		expect(sentenceContext(raw, start, start + 6, 'it')).toEqual({
+			sentence: 'Qui la parola sta.',
+			before: 'Prima frase.',
+			after: 'Ultima frase.'
+		});
+	});
+	test('sem vizinhas nas pontas', () => {
+		expect(sentenceContext(raw, 0, 5, 'it')).toMatchObject({ before: '', after: 'Qui la parola sta.' });
+		const end = raw.length - 3;
+		expect(sentenceContext(raw, end, end + 2, 'it')).toMatchObject({ after: '' });
+	});
+	test('seleção que atravessa frases junta e deixa as de fora como contexto', () => {
+		const start = raw.indexOf('frase.');
+		const to = raw.indexOf('Qui') + 3;
+		const r = sentenceContext(raw, start, to, 'it');
+		expect(r.sentence).toBe('Prima frase. Qui la parola sta.');
+		expect(r.after).toBe('Ultima frase.');
 	});
 });

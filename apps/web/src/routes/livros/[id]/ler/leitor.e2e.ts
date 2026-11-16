@@ -356,26 +356,49 @@ test('grifa um trecho com nota e ele aparece na lista ao recarregar', async ({ p
 	await expect(list).toContainText('começo bonito');
 });
 
-test('tocar numa palavra do texto abre o dicionário e salva no banco', async ({ page }) => {
+test('tocar numa palavra do texto abre o dicionário com a frase, salva e depois mostra "No seu banco"', async ({ page }) => {
 	await login(page);
 	const bookId = await seedBook(page);
 	// Resposta do dicionário simulada: o teste não chama IA.
-	await page.route('**/palavras/consultar', (route) =>
-		route.fulfill({
+	const asked: Record<string, unknown>[] = [];
+	await page.route('**/palavras/consultar', (route) => {
+		asked.push(route.request().postDataJSON());
+		return route.fulfill({
 			json: { lemma: 'manhã', reading: '', pos: 'substantivo', sense: 'início do dia', translation: 'Foi uma manhã clara.' }
-		})
-	);
+		});
+	});
 	await page.goto(`/livros/${bookId}/ler`);
 	const chapter = await chapterWith(page, 'Era uma manhã clara');
 	await expect(page.getByText('Abrindo o livro…')).toHaveCount(0);
 
-	await chapter.getByText('Era uma manhã clara').first().click({ position: { x: 60, y: 8 } });
+	const click = () => chapter.getByText('Era uma manhã clara').first().click({ position: { x: 60, y: 8 } });
+	await click();
 	await expect(page.getByText('início do dia').first()).toBeVisible();
+	// A consulta leva a palavra, a frase inteira e a frase seguinte como contexto.
+	expect(asked[0]).toMatchObject({
+		language: 'pt',
+		sentence: 'Era uma manhã clara.',
+		after: 'Ela olhou para o mare por muito tempo.'
+	});
 	await page.getByRole('button', { name: /^Salvar/ }).click();
 	await expect(async () => {
-		const items = await restAsUser<{ lemma: string }[]>(page, 'items?deleted_at=is.null&select=lemma');
-		expect(items.map((i) => i.lemma)).toContain('manhã');
+		const items = await restAsUser<Item[]>(
+			page,
+			'items?deleted_at=is.null&select=id,lemma,sense,note,language,seen_count,encounters(form,sentence,origin,work_id,position)'
+		);
+		const item = items.find((i) => i.lemma === 'manhã');
+		expect(item?.encounters[0]).toMatchObject({
+			sentence: 'Era uma manhã clara.',
+			origin: 'leitor',
+			position: { chapter: expect.any(String), spine: expect.any(Number) }
+		});
+		expect(item?.encounters[0].work_id).toBeTruthy();
 	}).toPass();
+
+	// Fecha e toca de novo: agora ela já está no banco.
+	await page.keyboard.press('Escape');
+	await click();
+	await expect(page.getByText('No seu banco', { exact: true })).toBeVisible();
 });
 
 test('sumário mostra a página de cada capítulo e dá para ir por página ou por %', async ({ page }) => {

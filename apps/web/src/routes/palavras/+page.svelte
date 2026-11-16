@@ -157,11 +157,18 @@
 	});
 
 	let adding = $state(false);
-	async function addNew() {
+	let moreOpen = $state(false);
+	let custom = $state('');
+	async function addNew(n: number) {
+		if (!Number.isInteger(n) || n < 1) return;
 		adding = true;
-		const r = await postAction('extra', {});
+		const r = await postAction('extra', { n: String(n) });
 		adding = false;
-		toast(r.ok ? 'Mais 5 novas para revisar hoje' : r.message);
+		if (r.ok) {
+			moreOpen = false;
+			custom = '';
+		}
+		toast(r.ok ? `Mais ${plural(n, 'palavra nova', 'palavras novas')} para hoje` : r.message);
 	}
 
 	function pickOrder(o: Order) {
@@ -384,18 +391,52 @@
 					</div>
 				</div>
 			</Popover>
-			{#if counts.novas > 0}
-				<button
-					class="btn btn-ghost add-btn"
-					type="button"
-					title="Puxa 5 palavras novas para a revisão de hoje"
-					disabled={adding}
-					onclick={addNew}><Icon name="plus" size="sm" />5 novas</button
-				>
-			{/if}
 			<a class="btn btn-primary review-btn" href={resolve('/flashcards/estudar')}
 				><Icon name="play" size="sm" />Revisar{#if toReview > 0}&nbsp;{toReview}{/if}</a
 			>
+			{#if counts.novas > 0}
+				<Popover label="Estudar mais" bind:open={moreOpen} width={240}>
+					{#snippet trigger({ toggle, expanded, id })}
+						<button
+							class="btn btn-ghost add-btn"
+							type="button"
+							title="Estudar mais palavras novas hoje"
+							aria-label="Estudar mais"
+							aria-haspopup="dialog"
+							aria-expanded={expanded}
+							aria-controls={id}
+							onclick={toggle}><Icon name="plus" size="sm" /></button
+						>
+					{/snippet}
+					<div class="more">
+						<p class="show-h">Estudar mais quantas?</p>
+						{#each [5, 10, 20] as n (n)}
+							<button class="more-opt" type="button" disabled={adding} onclick={() => addNew(n)}
+								>{n} palavras novas</button
+							>
+						{/each}
+						<div class="sep"></div>
+						<form
+							class="more-custom"
+							onsubmit={(e) => {
+								e.preventDefault();
+								void addNew(Number(custom));
+							}}
+						>
+							<input
+								type="number"
+								min="1"
+								max="1000"
+								inputmode="numeric"
+								placeholder="Outro número"
+								aria-label="Outro número de palavras"
+								bind:value={custom}
+							/>
+							<button class="btn btn-primary" type="submit" disabled={adding || !custom}>Ok</button>
+						</form>
+					</div>
+				</Popover>
+			{/if}
 		</div>
 
 		<nav class="tabs" aria-label="Filtro">
@@ -746,6 +787,40 @@
 		font-size: 13px;
 		font-weight: 500;
 		color: var(--ink-3);
+	}
+	.add-btn {
+		width: 38px;
+		padding: 0;
+	}
+	.more-opt {
+		display: block;
+		width: 100%;
+		padding: 8px 10px;
+		border: 0;
+		border-radius: var(--r-m);
+		background: none;
+		font-size: 15px;
+		color: var(--ink);
+		text-align: left;
+		cursor: pointer;
+	}
+	.more-opt:hover:not(:disabled) {
+		background: var(--hover);
+	}
+	.more-custom {
+		display: flex;
+		gap: 8px;
+		padding: 4px 4px 0;
+	}
+	.more-custom input {
+		flex: 1;
+		min-width: 0;
+		padding: 8px 10px;
+		border: 1px solid var(--line-2);
+		border-radius: var(--r-m);
+		background: var(--bg);
+		color: var(--ink);
+		font: inherit;
 	}
 	.sw {
 		display: flex;

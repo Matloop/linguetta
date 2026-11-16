@@ -1,42 +1,40 @@
 <!--
-	O fluxo do livro com blend num modal de 4 etapas: Livro (envio do EPUB), Mistura
-	(capítulos, línguas, quanto e prévia), Geração e Pronto. Sem `initial`, começa no envio;
-	com ele, abre na mistura (ou no pronto, se o livro já está gerado).
+	O fluxo do livro com blend num modal de 3 etapas: Livro (envio do EPUB), Mistura
+	(capítulos, línguas, quanto e prévia; gerar é um pedido só, com o léxico) e Pronto. Sem
+	`initial`, começa no envio; com ele, abre na mistura (ou no pronto, se o livro já está
+	gerado). Quem abre monta o modal e o desmonta ao fechar (`onclose`): cada abertura começa
+	do zero.
 -->
 <script lang="ts">
-	import { untrack } from 'svelte';
-	import { invalidateAll, preloadData } from '$app/navigation';
+	import { onMount, untrack } from 'svelte';
+	import { invalidateAll } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { listLanguages } from '@linguetta/language';
 	import {
 		inRange,
-		rangeProgress,
 		rangeSummary,
 		swapSegments,
+		type BookPayload,
 		type ChapterRow
 	} from '#lib/blend/book-ui.ts';
+	import { LADDER, ladderMarks, relaxedSentence, stepFor } from '#lib/blend/ladder.ts';
+	import { passesFilter } from '#lib/blend/lexicon.ts';
 	import { MAX_COVERAGE, selectSwaps, type Swap } from '#lib/blend/select.ts';
 	import { langAttrs, languageInline, languageLabel } from '#lib/languages.ts';
 	import Icon from '#lib/ui/Icon.svelte';
 	import Select from '#lib/ui/Select.svelte';
 	import { toast } from '#lib/ui/app-state.svelte.ts';
 	import { browserSupabase } from '#lib/ui/media-upload.ts';
-	import { postAction } from '#lib/ui/post-action.ts';
-	import type { PageData } from './[id]/$types';
-
-	type BookData = Pick<PageData, 'book' | 'chapters'>;
 
 	let {
-		open,
 		initial = null,
 		studyLanguages,
 		active = null,
 		userId = '',
 		onclose
 	}: {
-		open: boolean;
 		/** Livro já enviado. Sem ele, o modal começa no envio do EPUB. */
-		initial?: BookData | null;
+		initial?: BookPayload | null;
 		studyLanguages: readonly string[];
 		active?: string | null;
 		/** Pasta do Storage (só para o envio). */
@@ -44,12 +42,12 @@
 		onclose: () => void;
 	} = $props();
 
-	const STEPS = ['Livro', 'Mistura', 'Geração', 'Pronto'] as const;
+	const STEPS = ['Livro', 'Mistura', 'Pronto'] as const;
 	const MAX_BYTES = 50 * 1024 * 1024;
 	const nf = new Intl.NumberFormat('pt-BR');
 
 	let step = $state(0);
-	let uploaded = $state<BookData | null>(null);
+	let uploaded = $state<BookPayload | null>(null);
 	const current = $derived(uploaded ?? initial);
 
 	// Formulário, inicializado do livro (de novo só quando muda de livro).
@@ -60,9 +58,9 @@
 	let from = $state(0);
 	let to = $state(0);
 	let chapters = $state<ChapterRow[]>([]);
-	let saved = $state({ language: '', bookLanguage: '', percent: 0 });
 	let version = $state<number | null>(null);
-	let builtLinks = $state<number | null>(null);
+	/** O último livro gerado nesta sessão: palavras trocadas, do trecho, degrau da escada e o que liberou. */
+	let built = $state<{ swaps: number; words: number; step: number; relaxed: string[] } | null>(null);
 	let loadedFor = '';
 
 	const textChapters = $derived(chapters.filter((c) => c.words > 0));
@@ -72,12 +70,9 @@
 	const rangeTo = $derived(whole ? lastSpine : to);
 	const selected = $derived(inRange(chapters, rangeFrom, rangeTo));
 	const rangeWords = $derived(selected.reduce((n, c) => n + c.words, 0));
-	const progress = $derived(rangeProgress(chapters, rangeFrom, rangeTo));
-	const allReady = $derived(selected.length > 0 && selected.every((c) => c.status === 'feito'));
-	const invalidates = $derived(
-		language !== saved.language || bookLanguage !== saved.bookLanguage || percent !== saved.percent
-	);
-	const hasWork = $derived(chapters.some((c) => c.partsDone > 0 || c.status === 'feito'));
+	/** O livro já está no idioma de estudo: misturar não faz sentido, só ler. */
+	const sameLanguage = $derived(!!current && !!language && language === bookLanguage);
+	const languageOk = $derived(!!language && !!bookLanguage && language !== bookLanguage);
 
 	$effect.pre(() => {
 		if (!current) return;
@@ -88,9 +83,8 @@
 		language = b.language;
 		bookLanguage = b.bookLanguage;
 		percent = Math.round(b.coverage * 100);
-		saved = { language, bookLanguage, percent };
 		version = b.version;
-		builtLinks = null;
+		built = null;
 		const texts = current.chapters.filter((c) => c.words > 0);
 		const first = texts[0]?.spine ?? 0;
 		const last = texts.at(-1)?.spine ?? 0;
@@ -98,7 +92,7 @@
 		to = Math.min(b.rangeTo, last);
 		if (to < from) [from, to] = [first, last];
 		whole = from <= first && to >= last;
-		step = untrack(() => (version && allReady ? 3 : 1));
+		step = untrack(() => (version ? 2 : 1));
 	});
 
 	const chapterOptions = $derived(textChapters.map((c) => ({ value: c.spine, label: c.title })));
@@ -118,12 +112,12 @@
 		if (!bookLanguage || list.some((o) => o.value === bookLanguage)) return list;
 		return [{ value: bookLanguage, label: languageLabel(bookLanguage, 'pt'), disabled: false }, ...list];
 	});
-	const PRESETS = [
+	const SLIDER_MAX = MAX_COVERAGE * 100;
+	const presets = [
 		[5, 'Leve'],
 		[10, 'Iniciante'],
 		[25, 'Intermediário'],
-		[50, 'Avançado'],
-		[100, 'Imersão']
+		[50, 'Avançado']
 	] as const;
 
 	function setFrom(v: number) {
@@ -131,22 +125,9 @@
 		if (to < v) to = v;
 	}
 
-	// Modal: abrir sem livro (e sem geração em curso) recomeça do envio.
+	// Modal: montado a cada abertura, então já começa do estado inicial.
 	let dialog = $state<HTMLDialogElement>();
-	$effect(() => {
-		if (!dialog) return;
-		if (open && !dialog.open) {
-			untrack(() => {
-				if (initial || phase !== 'idle') return;
-				uploaded = null;
-				loadedFor = '';
-				step = 0;
-				uploadError = '';
-				notice = null;
-			});
-			dialog.showModal();
-		} else if (!open && dialog.open) dialog.close();
-	});
+	onMount(() => dialog?.showModal());
 
 	// 1. Envio do EPUB: sobe no Storage, registra e carrega o livro sem sair da tela.
 	let fileInput = $state<HTMLInputElement>();
@@ -181,13 +162,14 @@
 			uploadError = r.message;
 			return;
 		}
-		const page = await preloadData(resolve('/livros/[id]', { id }));
+		const opened = await fetch(resolve('/livros/[id]', { id })).catch(() => null);
+		const book = opened?.ok ? ((await opened.json()) as BookPayload) : null;
 		uploading = false;
-		if (page.type !== 'loaded' || page.status !== 200) {
+		if (!book) {
 			uploadError = 'Não deu para abrir o livro. Tente de novo.';
 			return;
 		}
-		uploaded = page.data as BookData;
+		uploaded = book;
 		await invalidateAll();
 	}
 
@@ -205,55 +187,69 @@
 		if (file && !uploading) void upload(file);
 	}
 
-	// 2. Prévia: um parágrafo do primeiro capítulo com candidata para cada palavra, uma chamada
-	// da IA por par de línguas; cada % escolhe as trocas aqui, com a mesma selectSwaps.
-	type Preview = { text: string; candidates: (Swap & { translation: string })[] };
-	const previews = new Map<string, Preview>();
-	let preview = $state<Preview | null>(null);
-	let previewError = $state('');
-	const previewKey = $derived(`${loadedFor}|${bookLanguage}|${language}`);
+	// 2. Alcance: o que cada degrau da escada de rigor entrega no trecho e um parágrafo de amostra
+	// com todas as candidatas; cada % escolhe o degrau e as trocas aqui, com a mesma selectSwaps.
+	type Reach = {
+		available: boolean;
+		steps: number[];
+		preview: {
+			text: string;
+			candidates: (Swap & { translation: string; tier: number; rank: number })[];
+		} | null;
+	};
+	const reaches = new Map<string, Reach>();
+	let reach = $state.raw<Reach | null>(null);
+	let reachError = $state('');
+	let reachTimer: ReturnType<typeof setTimeout> | undefined;
+	const reachKey = $derived(`${loadedFor}|${bookLanguage}|${language}|${rangeFrom}|${rangeTo}`);
 
 	$effect(() => {
-		if (!open || step !== 1 || !current || !language || !bookLanguage || language === bookLanguage) return;
-		const key = previewKey;
-		preview = previews.get(key) ?? null;
-		previewError = '';
-		if (preview) return;
-		post<Preview>(resolve('/livros/[id]/previa', { id: current.book.id }), {
-			spine: firstSpine,
-			language,
-			bookLanguage
-		}).then((r) => {
-			if (key !== previewKey) return;
+		if (step !== 1 || !current || !languageOk) return;
+		const key = reachKey;
+		const id = untrack(() => current!.book.id);
+		const range = { from: rangeFrom, to: rangeTo };
+		reach = reaches.get(key) ?? null;
+		reachError = '';
+		if (reach) return;
+		reachTimer = setTimeout(async () => {
+			const r = await post<Reach>(resolve('/livros/[id]/previa', { id }), { language, bookLanguage, ...range });
+			if (key !== reachKey) return;
 			if (!r.ok) {
-				previewError =
-					r.status === 429 ? 'O limite grátis da IA acabou por agora. A prévia volta mais tarde.' : r.message;
+				reachError = r.message;
 				return;
 			}
-			previews.set(key, r.data);
-			preview = r.data;
-		});
+			reaches.set(key, r.data);
+			reach = r.data;
+		}, 250);
+		return () => clearTimeout(reachTimer);
 	});
+
+	// O degrau da escada que o % pedido exige e o que isso significa para o usuário.
+	const reachSteps = $derived(reach?.available ? reach.steps : []);
+	const ladderStep = $derived(reachSteps.length ? stepFor(reachSteps, percent / 100) : 0);
+	const rung = $derived(LADDER[ladderStep]);
+	const marks = $derived(ladderMarks(reachSteps));
+	const topPercent = $derived(Math.floor((reachSteps.at(-1) ?? 0) * 100 + 1e-9));
+	const beyond = $derived(reachSteps.length > 0 && percent > topPercent);
+	const relaxedNote = $derived(relaxedSentence(ladderStep, percent));
 
 	const previewSegments = $derived.by(() => {
-		if (!preview) return [];
+		const sample = reach?.preview;
+		if (!sample) return [];
 		const [chosen] = selectSwaps({
-			texts: [preview.text],
-			candidates: [preview.candidates],
+			texts: [sample.text],
+			candidates: [sample.candidates.filter((c) => passesFilter(c, rung.filter))],
 			sourceLang: bookLanguage,
 			targetLang: language,
-			coverage: percent / 100
+			coverage: percent / 100,
+			relax: rung.relax
 		});
-		return swapSegments(preview.text, chosen);
+		return swapSegments(sample.text, chosen);
 	});
 
-	// 3. Geração: um pedido por pedaço de capítulo, depois o EPUB.
-	type Phase = 'idle' | 'saving' | 'blending' | 'building';
-	let phase = $state<Phase>('idle');
-	let currentTitle = $state('');
-	let notice = $state<{ kind: 'quota' | 'error' | 'paused'; text: string } | null>(null);
-	let stopRequested = false;
-	const busy = $derived(phase !== 'idle');
+	// 3. Geração: grava a configuração e pede o livro, num pedido só.
+	let busy = $state(false);
+	let notice = $state('');
 
 	async function post<T>(
 		path: string,
@@ -273,87 +269,36 @@
 	}
 
 	async function generate() {
-		if (!current) return;
-		if (invalidates && hasWork && !confirm('Mudar idioma ou quantidade descarta as trocas já preparadas. Continuar?')) {
-			return;
-		}
+		if (!current || busy) return;
 		const bookId = current.book.id;
-		notice = null;
-		stopRequested = false;
-		step = 2;
-		phase = 'saving';
-		const settings = { language, bookLanguage, percent };
-		const r = await postAction(
-			`${resolve('/livros/[id]', { id: bookId })}?/settings`,
-			{
-				language,
-				bookLanguage,
-				coverage: String(percent),
-				from: String(rangeFrom),
-				to: String(rangeTo)
-			},
-			{ reload: false }
+		notice = '';
+		busy = true;
+		const saved = await post(resolve('/livros/[id]', { id: bookId }), {
+			language,
+			bookLanguage,
+			coverage: percent,
+			from: rangeFrom,
+			to: rangeTo
+		});
+		if (!saved.ok) {
+			busy = false;
+			return (notice = saved.message);
+		}
+		const r = await post<{ version: number; swaps: number; words: number; step: number; relaxed: string[] }>(
+			resolve('/livros/[id]/gerar', { id: bookId })
 		);
-		if (!r.ok) return stop({ kind: 'error', text: r.message });
-		if (invalidates) {
-			for (const c of chapters) Object.assign(c, { status: 'pendente', parts: 0, partsDone: 0 });
-		}
-		saved = settings;
-
-		phase = 'blending';
-		for (const ch of selected) {
-			if (ch.status === 'feito') continue;
-			currentTitle = ch.title;
-			for (;;) {
-				if (stopRequested) return stop({ kind: 'paused', text: 'Pausado. O que já foi feito fica guardado.' });
-				const r = await post<{ part: number; parts: number; done: boolean }>(
-					resolve('/livros/[id]/blend', { id: bookId }),
-					{ spine: ch.spine }
-				);
-				if (!r.ok) {
-					return stop(
-						r.status === 429
-							? {
-									kind: 'quota',
-									text: 'O limite grátis da IA acabou por agora. O que já foi feito fica guardado: volte mais tarde e toque em Continuar.'
-								}
-							: { kind: 'error', text: `${ch.title}: ${r.message}` }
-					);
-				}
-				ch.parts = r.data.parts;
-				ch.partsDone = r.data.part;
-				if (r.data.done) {
-					ch.status = 'feito';
-					break;
-				}
-			}
-		}
-
-		phase = 'building';
-		currentTitle = '';
-		const built = await post<{ version: number; links: number }>(resolve('/livros/[id]/gerar', { id: bookId }));
-		if (!built.ok) return stop({ kind: 'error', text: built.message });
-		phase = 'idle';
-		version = built.data.version;
-		builtLinks = built.data.links;
-		step = 3;
-		toast(`EPUB pronto: ${built.data.links} ${built.data.links === 1 ? 'troca' : 'trocas'}`);
+		busy = false;
+		if (!r.ok) return (notice = r.message);
+		version = r.data.version;
+		built = { swaps: r.data.swaps, words: r.data.words, step: r.data.step, relaxed: r.data.relaxed };
+		step = 2;
+		toast(`EPUB pronto: ${nf.format(r.data.swaps)} ${r.data.swaps === 1 ? 'palavra' : 'palavras'}`);
 		await invalidateAll();
 	}
 
-	async function stop(n: NonNullable<typeof notice>) {
-		phase = 'idle';
-		currentTitle = '';
-		notice = n;
-		await invalidateAll();
-	}
-
-	const generateLabel = $derived(
-		allReady && !invalidates ? 'Gerar EPUB' : progress > 0 && !invalidates ? 'Continuar' : 'Gerar livro'
-	);
-	const languageOk = $derived(!!language && !!bookLanguage && language !== bookLanguage);
-	const chapterState = (c: ChapterRow) =>
-		c.status === 'feito' ? 'ok' : phase === 'blending' && c.title === currentTitle ? 'run' : 'wait';
+	const pf = new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 1 });
+	/** Quanto das palavras do trecho saiu trocado, em %. */
+	const achieved = $derived(built && built.words ? (built.swaps / built.words) * 100 : null);
 </script>
 
 <dialog
@@ -381,17 +326,15 @@
 			<div>
 				<p class="eyebrow">Etapa {step + 1}{current ? ` · ${current.book.title}` : ''}</p>
 				<h2 id="blend-titulo">
-					{['Escolha o livro', 'Configure a mistura', 'Gerando seu livro', 'Seu livro está pronto'][step]}
+					{['Escolha o livro', 'Configure a mistura', 'Seu livro está pronto'][step]}
 				</h2>
 				<p class="sub">
 					{#if step === 0}
 						Envie um EPUB. A gente lê os capítulos e detecta a língua.
 					{:else if step === 1}
 						Parte das palavras do livro aparece na língua que você estuda. Toque numa palavra no leitor para ver o significado.
-					{:else if step === 2}
-						{rangeSummary(chapters, rangeFrom, rangeTo)} · {percent}% em {languageInline(language, 'pt')}.
 					{:else}
-						{builtLinks !== null ? `${nf.format(builtLinks)} trocas em ${languageInline(language, 'pt')}.` : `Blend em ${languageInline(language, 'pt')}.`}
+						{built ? `${nf.format(built.swaps)} palavras trocadas em ${languageInline(language, 'pt')}.` : `Blend em ${languageInline(language, 'pt')}.`}
 						Leia aqui ou baixe o EPUB.
 					{/if}
 				</p>
@@ -476,6 +419,20 @@
 					</div>
 				</div>
 
+				{#if sameLanguage}
+					<p class="notice" role="note" data-testid="mesmo-idioma">
+						Este livro já está em {languageInline(bookLanguage, 'pt')}, o idioma que você estuda. Misturar não
+						faz sentido: leia direto e toque em qualquer palavra para ver o significado na frase.
+					</p>
+				{/if}
+
+				{#if reach && !reach.available}
+					<p class="notice" role="alert" data-testid="sem-par">
+						Ainda não temos o par {languageLabel(bookLanguage, 'pt')} → {languageLabel(language, 'pt')} para misturar
+						livros.
+					</p>
+				{/if}
+
 				<div class="field">
 					<div class="amount-head">
 						<label class="lbl" for="quanto">Quanto misturar</label>
@@ -486,23 +443,68 @@
 						class="range"
 						type="range"
 						min="1"
-						max={MAX_COVERAGE * 100}
+						max={SLIDER_MAX}
 						step="1"
 						bind:value={percent}
+						disabled={busy || (reach !== null && !reach.available)}
 						aria-valuetext="{percent}%"
-						style:--p="{((percent - 1) / (MAX_COVERAGE * 100 - 1)) * 100}%"
+						style:--p="{((percent - 1) / (SLIDER_MAX - 1)) * 100}%"
 					/>
 					<div class="presets">
-						{#each PRESETS as [value, name] (value)}
-							<button type="button" class="chip" aria-pressed={percent === value} onclick={() => (percent = value)}
-								>{name} · {value}%</button
+						{#each presets as [value, name] (value)}
+							<button
+								type="button"
+								class="chip"
+								aria-pressed={percent === value}
+								disabled={busy}
+								onclick={() => (percent = value)}>{name} · {value}%</button
 							>
 						{/each}
 					</div>
-					<span class="faint small"
-						>Cerca de {nf.format(Math.round((rangeWords * percent) / 100))} palavras
-						{language ? `em ${languageInline(language, 'pt')}` : 'trocadas'}.</span
-					>
+					<span class="faint small" data-testid="alcance">
+						{#if reach?.available}
+							Cerca de {nf.format(Math.round((rangeWords * percent) / 100))} palavras em {languageInline(language, 'pt')}.
+						{:else if reachError}
+							{reachError}
+						{:else if languageOk && !reach}
+							Calculando quanto dá para misturar…
+						{/if}
+					</span>
+					{#if reach?.available}
+						<div class="rigor" data-testid="rigor" data-step={ladderStep}>
+							<p class="rigor-head">
+								<span>Rigor: <b data-testid="rigor-nivel">{rung.rigor}</b></span>
+							</p>
+							{#if relaxedNote}
+								<p class="faint small" data-testid="liberado">{relaxedNote}</p>
+							{/if}
+							{#if beyond}
+								<p class="faint small" data-testid="alem">
+									Este trecho chega a {topPercent}% no máximo. Vamos usar o que der.
+								</p>
+							{/if}
+							{#if rung.warning}
+								<p class="warn" role="note" data-testid="aviso">{rung.warning}</p>
+							{/if}
+							{#if marks.length > 1}
+								<div class="ladder" role="group" aria-label="Quanto cada nível de rigor alcança">
+									{#each marks as m (m.step)}
+										<button
+											type="button"
+											class="rung"
+											aria-pressed={ladderStep === m.step}
+											disabled={busy}
+											title={LADDER[m.step].relaxed.length
+												? `Libera: ${LADDER[m.step].relaxed.join(', ')}`
+												: 'Nada liberado'}
+											onclick={() => (percent = Math.min(SLIDER_MAX, m.percent))}
+											><b>{m.percent}%</b><span>{LADDER[m.step].rigor}</span></button
+										>
+									{/each}
+								</div>
+							{/if}
+						</div>
+					{/if}
 				</div>
 
 				<div class="field">
@@ -510,10 +512,12 @@
 					<div class="sample-box" aria-live="polite">
 						{#if !languageOk}
 							<p class="faint small">Escolha duas línguas diferentes para ver a prévia.</p>
-						{:else if previewError}
-							<p class="faint small">{previewError}</p>
-						{:else if !preview}
+						{:else if reachError}
+							<p class="faint small">{reachError}</p>
+						{:else if !reach}
 							<p class="faint small">Preparando a prévia…</p>
+						{:else if !reach.available || !reach.preview}
+							<p class="faint small">Sem prévia para este trecho.</p>
 						{:else}
 							<p class="sample" {...langAttrs(bookLanguage)} data-testid="previa">
 								{#each previewSegments as s, i (i)}{#if s.translation}<mark
@@ -524,47 +528,33 @@
 						{/if}
 					</div>
 				</div>
-			{:else if step === 2}
-				<div class="field">
-					<div class="amount-head">
-						<span class="lbl" data-testid="estado"
-							>{selected.filter((c) => c.status === 'feito').length} de {selected.length} capítulos</span
-						>
-						<span class="faint small" aria-live="polite">
-							{#if phase === 'saving'}Salvando…{:else if phase === 'building'}Montando o EPUB…{:else if phase === 'blending'}{Math.round(
-									progress * 100
-								)}%{/if}
-						</span>
-					</div>
-					<span
-						class="bar"
-						role="progressbar"
-						aria-label="Progresso do blend"
-						aria-valuemin={0}
-						aria-valuemax={100}
-						aria-valuenow={Math.round(progress * 100)}><i style:width="{Math.round(progress * 100)}%"></i></span
-					>
-				</div>
-				<ul class="chapters">
-					{#each selected as c (c.spine)}
-						<li data-s={chapterState(c)}>
-							<span class="dot" aria-hidden="true"></span><span class="t">{c.title}</span><span class="w"
-								>{nf.format(c.words)}</span
-							>
-						</li>
-					{/each}
-				</ul>
 				{#if notice}
-					<p class="notice" class:soft={notice.kind !== 'error'} role="alert">{notice.text}</p>
+					<p class="notice" role="alert">{notice}</p>
 				{/if}
 			{:else}
 				<div class="stats">
-					{#if builtLinks !== null}
-						<div class="stat"><b>{nf.format(builtLinks)}</b><span>palavras misturadas</span></div>
+					{#if built}
+						<div class="stat"><b>{nf.format(built.swaps)}</b><span>palavras misturadas</span></div>
 					{/if}
+					<div class="stat" data-testid="resultado">
+						<b>{achieved !== null ? `${pf.format(achieved)}%` : `${percent}%`}</b>
+						<span>{achieved !== null ? `das palavras (pedido: ${percent}%)` : `em ${languageInline(language, 'pt')}`}</span>
+					</div>
 					<div class="stat"><b>{selected.length}</b><span>capítulos</span></div>
-					<div class="stat"><b>{percent}%</b><span>em {languageInline(language, 'pt')}</span></div>
 				</div>
+				{#if built}
+					<div class="rigor" data-testid="resultado-rigor">
+						<p class="rigor-head">
+							<span>Rigor: <b>{LADDER[built.step].rigor}</b></span>
+						</p>
+						<p class="faint small">
+							{relaxedSentence(built.step, percent) ?? 'Nenhum filtro foi liberado.'}
+						</p>
+						{#if LADDER[built.step].warning}
+							<p class="warn" role="note">{LADDER[built.step].warning}</p>
+						{/if}
+					</div>
+				{/if}
 			{/if}
 
 			<div class="foot">
@@ -581,28 +571,21 @@
 						>
 					{/if}
 				{:else if step === 1}
-					<button class="btn btn-ghost" type="button" onclick={() => (step = 0)}>Voltar</button>
-					<button
+					<button class="btn btn-ghost" type="button" disabled={busy} onclick={() => (step = 0)}>Voltar</button>
+					{#if sameLanguage}
+						<a
+							class="btn btn-primary"
+							href={resolve('/livros/[id]/ler', { id: current!.book.id })}
+							data-testid="ler-direto"><Icon name="play" size="sm" />Ler</a
+						>
+					{:else}<button
 						class="btn btn-primary"
 						type="button"
-						disabled={!languageOk}
+						disabled={!languageOk || busy || !reach?.available}
 						onclick={generate}
-						data-testid="gerar"><Icon name="sparks" size="sm" />{generateLabel}</button
-					>
-				{:else if step === 2}
-					{#if busy}
-						<span class="faint small">Pode fechar esta janela: a geração segue com a página aberta.</span>
-						{#if phase === 'blending'}
-							<button class="btn btn-ghost" type="button" onclick={() => (stopRequested = true)}
-								><Icon name="pause" size="sm" />Pausar</button
-							>
-						{/if}
-					{:else}
-						<button class="btn btn-ghost" type="button" onclick={() => (step = 1)}>Voltar</button>
-						<button class="btn btn-primary" type="button" onclick={generate}
-							><Icon name="sparks" size="sm" />Continuar</button
-						>
-					{/if}
+						data-testid="gerar"
+						>{#if busy}<span class="spinner" aria-hidden="true"></span>Gerando…{:else}<Icon name="sparks" size="sm" />Gerar livro{/if}</button
+					>{/if}
 				{:else if current}
 					<button class="btn btn-ghost" type="button" onclick={() => (step = 1)}>Gerar outra versão</button>
 					<div class="acts">
@@ -651,7 +634,7 @@
 	.steps {
 		flex: 1;
 		display: grid;
-		grid-template-columns: repeat(4, 1fr);
+		grid-template-columns: repeat(3, 1fr);
 		gap: 8px;
 		margin: 0;
 		padding: 0;
@@ -871,6 +854,65 @@
 		outline: 2px solid var(--ring);
 		outline-offset: 2px;
 	}
+	.rigor {
+		display: grid;
+		gap: 6px;
+		padding: 12px 14px;
+		border: 1px solid var(--line);
+		border-radius: var(--r-s);
+		background: var(--sunk);
+	}
+	.rigor p {
+		margin: 0;
+	}
+	.rigor-head {
+		font-size: 14px;
+		color: var(--ink-2);
+	}
+	.rigor-head b {
+		color: var(--ink);
+		font-weight: 600;
+	}
+	.warn {
+		font-size: 13px;
+		color: var(--terra-ink);
+	}
+	.ladder {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 6px;
+		margin-top: 2px;
+	}
+	.rung {
+		display: grid;
+		justify-items: start;
+		gap: 0;
+		font: inherit;
+		padding: 5px 10px;
+		border-radius: var(--r-s);
+		border: 1px solid var(--line);
+		background: transparent;
+		color: var(--ink-2);
+		cursor: pointer;
+		font-size: 12px;
+	}
+	.rung b {
+		font-size: 13px;
+		font-weight: 600;
+		color: var(--ink);
+		font-variant-numeric: tabular-nums;
+	}
+	.rung:hover {
+		background: var(--hover);
+	}
+	.rung[aria-pressed='true'] {
+		border-color: var(--prog);
+		background: var(--sel);
+	}
+	.rung:focus-visible {
+		outline: 2px solid var(--ring);
+		outline-offset: 2px;
+	}
 	.sample-box {
 		min-height: 64px;
 		padding: 14px 16px;
@@ -893,52 +935,13 @@
 		text-decoration: underline dotted var(--prog);
 		text-underline-offset: 3px;
 	}
-	.chapters {
-		max-height: 260px;
-		overflow-y: auto;
-		margin: 0;
-		padding: 0;
-		list-style: none;
-	}
-	.chapters li {
-		display: grid;
-		grid-template-columns: 18px 1fr auto;
-		gap: 12px;
-		align-items: center;
-		padding: 10px 0;
-		border-bottom: 1px solid var(--line);
-		font-size: 14px;
-	}
-	.chapters li:last-child {
-		border-bottom: 0;
-	}
-	.chapters li[data-s='wait'] {
-		color: var(--ink-3);
-	}
-	.chapters .t {
-		overflow: hidden;
-		text-overflow: ellipsis;
-		white-space: nowrap;
-	}
-	.chapters .w {
-		font-size: 12px;
-		color: var(--ink-3);
-		font-variant-numeric: tabular-nums;
-	}
-	.dot {
+	.spinner {
 		width: 14px;
 		height: 14px;
 		border-radius: 50%;
-		border: 1.5px solid var(--line);
-	}
-	li[data-s='run'] .dot {
-		border-color: var(--prog);
+		border: 2px solid currentColor;
 		border-right-color: transparent;
 		animation: spin 0.8s linear infinite;
-	}
-	li[data-s='ok'] .dot {
-		background: var(--prog);
-		border-color: var(--prog);
 	}
 	@keyframes spin {
 		to {
@@ -974,10 +977,6 @@
 		background: var(--terra-soft);
 		color: var(--terra-ink);
 		font-size: 14px;
-	}
-	.notice.soft {
-		background: var(--sunk);
-		color: var(--ink);
 	}
 	.foot {
 		display: flex;

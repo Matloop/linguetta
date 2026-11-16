@@ -27,6 +27,8 @@
 		/** Erro ao salvar, mostrado no cartão. */
 		message?: string;
 		onsave: (input: { lemma: string; reading: string; sense: string }) => void;
+		/** A resposta do dicionário chegou (quem abre pode ver se o lema já está no banco). */
+		onentry?: (entry: DictEntry) => void;
 		onclose: () => void;
 	}
 
@@ -39,6 +41,7 @@
 		saving,
 		message = '',
 		onsave,
+		onentry,
 		onclose
 	}: Props = $props();
 
@@ -65,6 +68,7 @@
 			const found = await lookup(untrack(() => query));
 			if (mine !== attempt) return;
 			result = { status: 'ok', entry: found };
+			onentry?.(found);
 			if (!typed && !sense.trim()) sense = found.sense;
 		} catch (e) {
 			if (mine !== attempt) return;

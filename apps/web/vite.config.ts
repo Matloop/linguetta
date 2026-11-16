@@ -3,6 +3,8 @@ import { sveltekit } from '@sveltejs/kit/vite';
 import { defineConfig } from 'vite';
 
 export default defineConfig({
+	// Os léxicos do blend de livro (.gz) entram no pacote do servidor como dado (lib/server/lexicon.ts).
+	assetsInclude: ['**/*.lexicon.json.gz'],
 	plugins: [
 		sveltekit({
 			compilerOptions: {

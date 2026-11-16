@@ -104,7 +104,7 @@
 	<div class="grab" aria-hidden="true"></div>
 	<div class="dh">
 		<h2 id="{id}-titulo">{title}</h2>
-		{@render chip?.()}
+		{#if chip}<div class="chips">{@render chip()}</div>{/if}
 		<span class="sp"></span>
 		<button type="submit" form={formId} class="btn btn-primary m-save" disabled={pending}
 			>{submitLabel}</button
@@ -206,6 +206,13 @@
 		color: var(--ink-2);
 		white-space: nowrap;
 	}
+	.chips {
+		display: flex;
+		align-items: center;
+		flex-wrap: wrap;
+		gap: 8px;
+		min-width: 0;
+	}
 	.sp {
 		flex: 1;
 	}
@@ -267,12 +274,20 @@
 			border-radius: 99px;
 			background: var(--line-2);
 		}
+		/* Celular: título e botões numa linha; os chips (idioma, baralho) descem para a segunda. */
 		.dh {
+			flex-wrap: wrap;
+			row-gap: 8px;
 			gap: 8px;
 			padding: 6px 10px 0 18px;
 		}
 		.dh h2 {
 			font-size: 14px;
+		}
+		.chips {
+			order: 1;
+			flex-basis: 100%;
+			padding-bottom: 2px;
 		}
 		.m-save {
 			display: inline-flex;
