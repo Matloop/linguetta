@@ -941,7 +941,6 @@
 
 	.card3d {
 		width: min(580px, 100%);
-		height: 340px;
 		perspective: 1600px;
 	}
 	.card3d.enter {
@@ -954,9 +953,10 @@
 		}
 	}
 	.card-in {
-		position: relative;
+		/* Frente e verso dividem a mesma célula: o cartão cresce com a face maior. */
+		display: grid;
+		grid-template: minmax(340px, auto) / 100%;
 		width: 100%;
-		height: 100%;
 		transform-style: preserve-3d;
 		transition: transform 0.65s var(--ease);
 	}
@@ -964,8 +964,7 @@
 		transform: rotateY(180deg);
 	}
 	.face {
-		position: absolute;
-		inset: 0;
+		grid-area: 1 / 1;
 		backface-visibility: hidden;
 		-webkit-backface-visibility: hidden;
 		background: var(--raise);
@@ -1373,8 +1372,8 @@
 			padding: 22px 0 4px;
 			justify-content: flex-start;
 		}
-		.card3d {
-			height: 380px;
+		.card-in {
+			grid-template-rows: minmax(380px, auto);
 		}
 		.face {
 			padding: 16px 20px 22px;
