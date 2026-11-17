@@ -24,6 +24,10 @@
 //      sem alternativa; empate: a ordem em que o motor entregou (a preferência dele).
 //   6. repetição: o mesmo lema (do banco ou não) só volta a REPEAT_GAP falas de distância da última
 //      vez em que apareceu (repetição espaçada).
+//   7. escada (LADDER): as regras 3 e 6 são filtros de qualidade que cedem para fechar a cota, como no
+//      blend de livro. Roda a escolha com o rigor máximo; se faltou cota, afrouxa o filtro menos
+//      importante (repetição a 10, 5, 0 falas; por fim extra com qualquer candidata) e escolhe de novo,
+//      até fechar a cota ou acabar a escada (o melhor que dá). `strict: true` fica só no degrau 0.
 import { countWords, lemmaKey } from '@linguetta/language';
 
 export const DEFAULT_WORD_COVERAGE = 0.1;
@@ -36,6 +40,15 @@ export const COMMON = 5000;
 const BANK = 100;
 // Nota mínima de uma troca extra na mesma fala: fora da lista (rara) não entra.
 const EXTRA_MIN = 1.5;
+
+/** Do mais rigoroso ao mais frouxo, cada degrau afrouxa o anterior. gap: falas entre o mesmo lema; extraMin: nota mínima da troca extra. */
+export const LADDER = [
+  { gap: REPEAT_GAP, extraMin: EXTRA_MIN },
+  { gap: 10, extraMin: EXTRA_MIN },
+  { gap: 5, extraMin: EXTRA_MIN },
+  { gap: 0, extraMin: EXTRA_MIN },
+  { gap: 0, extraMin: 0 },
+];
 
 /** Nota da frequência de um lema: rank(palavra) → posição ou null; frequency null = sem lista. */
 export function frequencyScore(frequency, ...words) {
@@ -69,7 +82,19 @@ export function blendPlan({ texts, sourceLang, wordCoverage }) {
  * texts: string[] do lote; candidates: Array<ann[]> (validadas, na ordem de preferência do motor).
  * frequency: { rank(word) } da língua de estudo ou null. Devolve Array<ann[]> com o que fica.
  */
-export function selectSwaps({ texts, candidates, sourceLang, targetLang, wordCoverage, cueOffset = 0, preferWords = [], frequency = null }) {
+export function selectSwaps(input) {
+  const { texts, sourceLang, wordCoverage } = input;
+  const quota = blendPlan({ texts, sourceLang, wordCoverage }).quota;
+  let chosen = selectAt(input, LADDER[0]);
+  for (let step = 1; !input.strict && step < LADDER.length && swappedWords(chosen, sourceLang) < quota; step++) {
+    chosen = selectAt(input, LADDER[step]);
+  }
+  return chosen;
+}
+
+const swappedWords = (chosen, lang) => chosen.reduce((n, anns) => n + anns.reduce((m, a) => m + Math.max(1, countWords(a.source, lang)), 0), 0);
+
+function selectAt({ texts, candidates, sourceLang, targetLang, wordCoverage, cueOffset = 0, preferWords = [], frequency = null }, relax) {
   const out = texts.map(() => []);
   const plan = blendPlan({ texts, sourceLang, wordCoverage });
   if (!plan.quota) return out;
@@ -89,7 +114,7 @@ export function selectSwaps({ texts, candidates, sourceLang, targetLang, wordCov
   const used = texts.map(() => 0); // palavras trocadas por fala
   const dist = texts.map(() => Infinity); // distância até a fala com troca mais perto
   let total = 0;
-  const eligible = (c, g) => (seenAt.get(c.key) ?? []).every((p) => Math.abs(g - p) >= REPEAT_GAP);
+  const eligible = (c, g) => (seenAt.get(c.key) ?? []).every((p) => Math.abs(g - p) >= relax.gap);
   // Melhor candidata ainda possível na fala i: a primeira troca aceita qualquer nota; uma extra precisa
   // ser boa, de outro lema e caber na metade das palavras.
   const best = (i) => {
@@ -98,7 +123,7 @@ export function selectSwaps({ texts, candidates, sourceLang, targetLang, wordCov
     let top = null;
     for (const c of scored[i]) {
       if (out[i].includes(c.ann) || !eligible(c, g)) continue;
-      if (!first && (c.base < EXTRA_MIN || used[i] + c.words > halfOf(plan.perText[i]))) continue;
+      if (!first && (c.base < relax.extraMin || used[i] + c.words > halfOf(plan.perText[i]))) continue;
       if (!top || c.score > top.score) top = c;
     }
     return top;

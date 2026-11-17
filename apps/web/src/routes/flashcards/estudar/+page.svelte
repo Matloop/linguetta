@@ -49,6 +49,8 @@
 	const PREFS_KEY = 'linguetta:revisar';
 	let autoplay = $state(false);
 	let showContext = $state(true);
+	/** As tags ficam escondidas até o usuário abrir o filtro pelo botão da barra. */
+	let tagsOpen = $state(false);
 	let prefsLoaded = false;
 
 	let rateForm: HTMLFormElement | undefined = $state();
@@ -529,6 +531,16 @@
 						title="Editar"><Icon name="pencil" size="sm" /></button
 					>
 				{/if}
+				{#if data.tags.length > 0 || data.tag}
+					<button
+						class="icon-btn tags-toggle"
+						type="button"
+						aria-pressed={tagsOpen}
+						aria-label="Filtrar por tag"
+						title="Filtrar por tag"
+						onclick={() => (tagsOpen = !tagsOpen)}><Icon name="tag" size="sm" /></button
+					>
+				{/if}
 				<details class="rv-prefs">
 					<summary class="icon-btn" aria-label="Preferências da revisão" title="Preferências"
 						><Icon name="settings" /></summary
@@ -546,7 +558,7 @@
 				>
 			</span>
 		</div>
-		{#if session.answered === 0}{@render tagBar()}{/if}
+		{#if session.answered === 0 && tagsOpen}{@render tagBar()}{/if}
 
 		{#if leech}
 			<div class="leech" role="status">
@@ -1085,6 +1097,10 @@
 	.ph + .tags {
 		margin: -12px 0 0;
 		justify-content: flex-start;
+	}
+	.tags-toggle[aria-pressed='true'] {
+		background: var(--tile);
+		color: var(--ink);
 	}
 	.rv-img {
 		display: block;

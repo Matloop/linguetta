@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 
 import { annotate, parseAnnotateRequest } from '../src/app.js';
 import { buildUserMessage } from '../src/providers/claude.js';
-import { REPEAT_GAP, blendPlan, frequencyScore, selectSwaps } from '../src/blend/select.js';
+import { LADDER, REPEAT_GAP, blendPlan, frequencyScore, selectSwaps } from '../src/blend/select.js';
 
 const LANGS = { sourceLang: 'pt', targetLang: 'it' };
 // Lista de frequência de mentira: posição de cada palavra.
@@ -72,7 +72,7 @@ test('teto é limite, não obrigação: extra só com candidata boa (fora da lis
   const f = freq({ macchina: 400, estate: 900 });
   const long = 'Eu quero muito comprar um carro novo para viajar com a família no verão.';
   const candidates = [[ann('carro', 'macchina'), ann('família', 'xyz'), ann('verão', 'estate')]];
-  const [out] = selectSwaps({ ...LANGS, texts: [long], candidates, wordCoverage: 0.5, frequency: f });
+  const [out] = selectSwaps({ ...LANGS, texts: [long], candidates, wordCoverage: 0.5, frequency: f, strict: true });
   assert.deepEqual(out.map((a) => a.source), ['carro', 'verão'], 'a rara fica de fora; ordem de leitura');
 });
 
@@ -142,12 +142,29 @@ test('repetição: o mesmo lema, do banco ou não, só volta depois de REPEAT_GA
   const n = REPEAT_GAP + 5;
   const texts = Array.from({ length: n }, () => SHORT('festa'));
   const candidates = texts.map(() => [ann('festa', 'festa')]);
-  const fresh = selectSwaps({ ...LANGS, texts, candidates, wordCoverage: 0.25 });
+  const fresh = selectSwaps({ ...LANGS, texts, candidates, wordCoverage: 0.25, strict: true });
   assert.deepEqual(withSwap(fresh), [0, REPEAT_GAP], 'lema novo também volta, espaçado');
-  const bank = selectSwaps({ ...LANGS, texts, candidates, wordCoverage: 0.25, preferWords: ['festa'] });
+  const bank = selectSwaps({ ...LANGS, texts, candidates, wordCoverage: 0.25, preferWords: ['festa'], strict: true });
   assert.deepEqual(withSwap(bank), [0, REPEAT_GAP]);
-  const short = selectSwaps({ ...LANGS, texts: texts.slice(0, REPEAT_GAP), candidates: candidates.slice(0, REPEAT_GAP), wordCoverage: 0.25 });
+  const short = selectSwaps({ ...LANGS, texts: texts.slice(0, REPEAT_GAP), candidates: candidates.slice(0, REPEAT_GAP), wordCoverage: 0.25, strict: true });
   assert.equal(short.flat().length, 1, 'dentro de REPEAT_GAP falas aparece uma vez só');
+});
+
+test('escada: sem cota fechada, afrouxa a repetição e depois a nota da extra até o que dá', () => {
+  const n = REPEAT_GAP + 5;
+  const texts = Array.from({ length: n }, () => SHORT('festa'));
+  const candidates = texts.map(() => [ann('festa', 'festa')]);
+  assert.equal(selectSwaps({ ...LANGS, texts, candidates, wordCoverage: 0.25, strict: true }).flat().length, 2);
+  // 25% de 100 palavras = 25 trocas: só fecha sem espaçamento do lema.
+  const out = selectSwaps({ ...LANGS, texts, candidates, wordCoverage: 0.25 });
+  assert.equal(swapped(out), 25);
+  // rara fora da lista: só entra como extra no último degrau
+  const f = freq({ macchina: 400 });
+  const long = 'Eu quero muito comprar um carro novo para viajar com a família no verão.';
+  const rare = [[ann('carro', 'macchina'), ann('família', 'xyz'), ann('verão', 'xyz2')]];
+  const [last] = selectSwaps({ ...LANGS, texts: [long], candidates: rare, wordCoverage: 0.5, frequency: f });
+  assert.equal(last.length, 3);
+  assert.equal(LADDER[0].gap, REPEAT_GAP);
 });
 
 test('cueOffset: as janelas seguem a posição global; a que começou no lote anterior é dele (a cota compensa)', () => {
