@@ -1,4 +1,18 @@
 import type { Course, Lesson } from './types.ts';
+import * as b008 from './italiano/licoes-008-014.ts';
+import * as b015 from './italiano/licoes-015-021.ts';
+import * as b022 from './italiano/licoes-022-028.ts';
+import * as b029 from './italiano/licoes-029-035.ts';
+import * as b036 from './italiano/licoes-036-042.ts';
+import * as b043 from './italiano/licoes-043-049.ts';
+import * as b050 from './italiano/licoes-050-056.ts';
+import * as b057 from './italiano/licoes-057-063.ts';
+import * as b064 from './italiano/licoes-064-070.ts';
+import * as b071 from './italiano/licoes-071-077.ts';
+import * as b078 from './italiano/licoes-078-084.ts';
+import * as b085 from './italiano/licoes-085-091.ts';
+import * as b092 from './italiano/licoes-092-098.ts';
+import * as b099 from './italiano/licoes-099-105.ts';
 
 /*
  * Curso de italiano para quem fala português do Brasil, no espírito do método Assimil.
@@ -2351,11 +2365,16 @@ const licao7: Lesson = {
 	]
 };
 
+const blocos = [b008, b015, b022, b029, b036, b043, b050, b057, b064, b071, b078, b085, b092, b099];
+
 export const italiano: Course = {
 	id: 'italiano-1',
 	language: 'it',
 	title: 'Italiano',
-	planned: 100,
-	units: [{ no: 1, title: 'Primeiros dias', lessons: [0, 1, 2, 3, 4, 5, 6, 7] }],
-	lessons: [licao0, licao1, licao2, licao3, licao4, licao5, licao6, licao7]
+	planned: 105,
+	units: [
+		{ no: 1, title: 'Primeiros dias', lessons: [0, 1, 2, 3, 4, 5, 6, 7] },
+		...blocos.map((b) => b.unidade)
+	],
+	lessons: [licao0, licao1, licao2, licao3, licao4, licao5, licao6, licao7, ...blocos.flatMap((b) => b.licoes)]
 };
