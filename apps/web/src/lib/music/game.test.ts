@@ -422,6 +422,68 @@ describe('fim', () => {
 	});
 });
 
+describe('pular pela barra de tempo', () => {
+	test('tocando: pula para a frente e as lacunas que ficaram para trás contam como puladas', () => {
+		const game = started();
+		game.tick(7, 10);
+		expect(game.jump(15)).toEqual([{ type: 'seek', to: 15 }]);
+		expect(game.phase).toBe('playing');
+		expect(game.activeLine).toBe(3);
+		// A da linha atual (1) também: a pessoa saiu dela.
+		expect(game.results.map((r) => [r.line, r.skipped])).toEqual([[1, true]]);
+		expect(game.answerable?.line).toBe(3);
+	});
+
+	test('esperando: abandona a espera, pula e volta a tocar', () => {
+		const game = started();
+		game.tick(7, 10);
+		game.tick(10.1, 20);
+		expect(game.phase).toBe('waiting');
+		expect(game.jump(11)).toEqual([{ type: 'seek', to: 11 }, { type: 'play' }]);
+		expect(game.phase).toBe('playing');
+		expect(game.waitRemainingMs(30)).toBeNull();
+		expect(game.results.map((r) => [r.line, r.skipped])).toEqual([[1, true]]);
+	});
+
+	test('para trás não pula nada; a lacuna da linha volta a esperar resposta', () => {
+		const game = started();
+		game.tick(7, 10);
+		game.tick(10.1, 20);
+		expect(game.jump(3)).toEqual([{ type: 'seek', to: 3 }, { type: 'play' }]);
+		expect(game.results).toEqual([]);
+		expect(game.activeLine).toBe(0);
+	});
+
+	test('pausado: pula e continua pausado; a retomada toca', () => {
+		const game = started();
+		game.tick(3, 10);
+		game.pause(10);
+		expect(game.jump(12)).toEqual([{ type: 'seek', to: 12 }]);
+		expect(game.phase).toBe('paused');
+		expect(game.resume(20)).toEqual([{ type: 'play' }]);
+	});
+
+	test('fora do jogo (pronto, fim de jogo, resumo, sincronia) não pula', () => {
+		expect(new Game(config()).jump(5)).toEqual([]);
+		const over = started();
+		over.finishNow();
+		expect(over.jump(5)).toEqual([]);
+		const syncing = started();
+		syncing.suspend(0);
+		expect(syncing.jump(5)).toEqual([]);
+	});
+});
+
+describe('modo ouvir', () => {
+	test('sem lacunas, não termina com a letra: toca até o vídeo acabar', () => {
+		const game = started({ gaps: [], listen: true });
+		game.tick(7, 10);
+		expect(game.tick(60, 20)).toEqual([]);
+		expect(game.phase).toBe('playing');
+		expect(game.activeLine).toBe(3);
+	});
+});
+
 describe('resumo', () => {
 	test('conta acertos de primeira, erradas e pontos', () => {
 		const game = started();

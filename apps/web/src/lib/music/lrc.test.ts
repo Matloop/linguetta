@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { MAX_LINE_SECONDS, parseLrc, parseSyncedLyrics, toLyricLines } from './lrc.ts';
+import { LAST_LINE_SECONDS, MAX_LINE_SECONDS, parseLrc, parseSyncedLyrics, toLyricLines } from './lrc.ts';
 
 // Versos inventados para os testes. Nenhuma letra real entra no repositório.
 const SRC = `[ar:Banda Inventada]
@@ -79,6 +79,11 @@ describe('toLyricLines', () => {
 	test('limita a duração de uma linha antes de um trecho instrumental longo', () => {
 		const lines = toLyricLines(parseLrc('[00:10.00] Verse\n[01:10.00] Next'));
 		expect(lines[0].end).toBe(10 + MAX_LINE_SECONDS);
+	});
+
+	test('a última linha cantada acaba cedo mesmo com instrumental marcado depois', () => {
+		const lines = toLyricLines(parseLrc('[00:10.00] Verse\n[00:20.00] Fim\n[00:28.00]\n[03:00.00]'));
+		expect(lines[1].end).toBe(20 + LAST_LINE_SECONDS);
 	});
 
 	test('parseSyncedLyrics junta as duas etapas', () => {

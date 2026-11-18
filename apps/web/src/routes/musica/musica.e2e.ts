@@ -50,7 +50,7 @@ async function pickSong(
 
 type Level = 'Iniciante' | 'Intermediário' | 'Avançado' | 'Especialista';
 const level = (page: Page, name: Level) =>
-	page.getByRole('group', { name: 'Dificuldade' }).getByRole('button', { name: new RegExp(name) });
+	page.getByRole('group', { name: 'Modo' }).getByRole('button', { name: new RegExp(name) });
 
 /** Tocar no nível já começa o jogo. */
 async function begin(page: Page, difficulty: Level = 'Iniciante') {
@@ -174,7 +174,7 @@ test('música sem letra sincronizada e serviço fora do ar mostram mensagem clar
 
 	await pickSong(page, VIDEOS.noLyrics);
 	await expect(page.getByRole('alert')).toContainText('Não achei letra sincronizada');
-	await expect(page.getByRole('group', { name: 'Dificuldade' })).toHaveCount(0);
+	await expect(page.getByRole('group', { name: 'Modo' })).toHaveCount(0);
 
 	await pickSong(page, VIDEOS.down);
 	await expect(page.getByRole('alert')).toContainText('O serviço de letras não respondeu');
@@ -442,7 +442,7 @@ test('sincronia: clipe mostra o palpite e outra versão da letra fica salva na m
 	const letra = page.waitForRequest((r) => r.url().includes('/musica/letra'));
 	await page.reload();
 	expect((await letra).url()).toContain('id=3');
-	await expect(page.getByRole('group', { name: 'Dificuldade' })).toBeVisible();
+	await expect(page.getByRole('group', { name: 'Modo' })).toBeVisible();
 });
 
 test('sincronia: ignorar o palpite também fica salvo', async ({ page }) => {
@@ -456,7 +456,7 @@ test('sincronia: ignorar o palpite também fica salvo', async ({ page }) => {
 	]);
 	await expect(page.getByTestId('dica-sincronia')).toBeHidden();
 	await page.reload();
-	await expect(page.getByRole('group', { name: 'Dificuldade' })).toBeVisible();
+	await expect(page.getByRole('group', { name: 'Modo' })).toBeVisible();
 	await expect(page.getByTestId('dica-sincronia')).toHaveCount(0);
 });
 
@@ -468,7 +468,7 @@ test('sincronia: não mexe no vídeo, marca trechos, não pula de linha sozinha,
 	await login(page);
 	await pickSong(page, VIDEOS.ok);
 	// Faixa e vídeo com a mesma duração: sem palpite.
-	await expect(page.getByRole('group', { name: 'Dificuldade' })).toBeVisible();
+	await expect(page.getByRole('group', { name: 'Modo' })).toBeVisible();
 	await expect(page.getByTestId('dica-sincronia')).toHaveCount(0);
 	await begin(page);
 	await expect.poll(() => page.evaluate(() => window.__fakeYT.time)).toBeGreaterThan(2);
@@ -568,4 +568,62 @@ test('sincronia: não mexe no vídeo, marca trechos, não pula de linha sozinha,
 	await expect(trechos).toContainText('Linha 2 em diante');
 	await expect(trechos).toContainText('Linha 3 em diante');
 	await expect(trechos).toContainText(tuned);
+});
+
+/** Clica na barra de tempo do topo em `share` (0–1) da largura. */
+async function clickTimeline(page: Page, share: number) {
+	const bar = page.getByTestId('barra-tempo');
+	const box = await bar.boundingBox();
+	if (!box) throw new Error('barra de tempo sem tamanho');
+	await bar.click({ position: { x: box.width * share, y: box.height / 2 } });
+}
+
+test('ouvir: sem jogo, a barra de tempo pula e o fim do vídeo volta para a escolha', async ({
+	page
+}) => {
+	test.setTimeout(60_000);
+	await installFakeYoutube(page, 2);
+	await login(page);
+	await pickSong(page, VIDEOS.ok);
+
+	// "Ouvir" fica em cima de "Iniciante".
+	const modes = page.getByRole('group', { name: 'Modo' }).getByRole('button');
+	await expect(modes.nth(0)).toContainText('Ouvir');
+	await expect(modes.nth(1)).toContainText('Iniciante');
+	await page.getByTestId('modo-ouvir').click();
+
+	await expect(page.getByTestId('estado')).toBeVisible();
+	await expect.poll(() => playing(page)).toBe(true);
+	// Sem lacunas, sem opções e sem placar.
+	await expect(page.locator('.lin')).toHaveCount(VERSES.length);
+	await expect(page.locator('.lin .gap')).toHaveCount(0);
+	await expect(page.locator('.op')).toHaveCount(0);
+	await expect(page.getByTestId('pontos')).toBeHidden();
+	await expect(page.getByTestId('jogar')).toBeVisible();
+
+	// Clicar na barra pula a música (as linhas começam em 1 + 3i s; o vídeo tem 28 s).
+	await clickTimeline(page, 0.6);
+	await expect.poll(() => page.evaluate(() => window.__fakeYT.time)).toBeGreaterThan(16);
+	await expect(page.locator('.lin.atual')).toHaveAttribute('data-line', /^[5-7]$/);
+
+	// Passa do fim da letra tocando; no fim do vídeo volta para a escolha.
+	await expect(page.getByRole('group', { name: 'Modo' })).toBeVisible({ timeout: 20_000 });
+});
+
+test('jogo: a barra de tempo pula e as lacunas de trás ficam puladas, sem ir para revisar', async ({
+	page
+}) => {
+	test.setTimeout(60_000);
+	await installFakeYoutube(page);
+	await login(page);
+	await pickSong(page, VIDEOS.ok);
+	await begin(page, 'Iniciante');
+	await expect.poll(() => playing(page)).toBe(true);
+
+	await clickTimeline(page, 0.5);
+	await expect.poll(() => page.evaluate(() => window.__fakeYT.time)).toBeGreaterThan(13);
+	await expect(page.locator('.lin.atual')).toHaveAttribute('data-line', /^[4-5]$/);
+	expect(await playing(page)).toBe(true);
+	await expect(page.getByTestId('rev-n')).toBeHidden();
+	await expect(page.getByTestId('pontos')).toHaveText('0');
 });

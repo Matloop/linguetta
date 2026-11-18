@@ -61,12 +61,13 @@ export function parseLrc(src: string): LrcEntry[] {
 
 export function toLyricLines(entries: readonly LrcEntry[]): LyricLine[] {
 	const lines: LyricLine[] = [];
+	const lastSung = entries.findLastIndex((e) => e.text !== '');
 	entries.forEach((entry, i) => {
 		if (entry.text === '') return;
 		const next = entries[i + 1];
-		const end = next
-			? Math.min(next.time, entry.time + MAX_LINE_SECONDS)
-			: entry.time + LAST_LINE_SECONDS;
+		// Depois da última linha só há instrumental: o jogo acaba com as palavras.
+		const cap = i === lastSung ? LAST_LINE_SECONDS : MAX_LINE_SECONDS;
+		const end = next ? Math.min(next.time, entry.time + cap) : entry.time + cap;
 		lines.push({ index: lines.length, start: entry.time, end, text: entry.text });
 	});
 	return lines;

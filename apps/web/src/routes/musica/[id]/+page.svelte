@@ -21,6 +21,7 @@
 	import {
 		buildSession,
 		difficultyCounts,
+		listenSession,
 		type Session,
 		type SessionGap
 	} from '#lib/music/session.ts';
@@ -242,10 +243,21 @@
 	// Só para mostrar na tela de início quantas lacunas cada dificuldade tem.
 	const counts = $derived(difficultyCounts(lyrics, lang));
 
+	/** A última escolha foi o modo ouvir (a tela de início foca nele). */
+	let listening = $state(false);
+
 	function startGame(d: Difficulty = difficulty) {
 		if (status !== 'ready' || !player || !ctl) return;
 		difficulty = d;
+		listening = false;
 		session = buildSession({ lyrics, lang, difficulty, bank: bankKeys, rng: Math.random });
+		send({ type: 'start', session });
+	}
+
+	function startListen() {
+		if (status !== 'ready' || !player || !ctl) return;
+		listening = true;
+		session = listenSession(lyrics, lang);
 		send({ type: 'start', session });
 	}
 
@@ -282,6 +294,55 @@
 	let clockSeconds = $state(0);
 	let progFill: HTMLDivElement | undefined = $state();
 
+	// ---------- barra de tempo: clicar ou arrastar pula a música ----------
+	/** Onde a pessoa está arrastando (% da duração); null fora do arraste. */
+	let scrubPct = $state<number | null>(null);
+	/** Onde o mouse está sobre a barra, para mostrar o tempo. */
+	let hoverPct = $state<number | null>(null);
+	const SEEK_STEP_S = 5;
+	const canSeek = $derived(
+		started && duration > 0 && phase !== 'gameover' && phase !== 'finished'
+	);
+	const tipPct = $derived(canSeek ? (scrubPct ?? hoverPct) : null);
+
+	function pctAt(e: PointerEvent): number {
+		const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
+		return r.width > 0 ? Math.max(0, Math.min(1, (e.clientX - r.left) / r.width)) * 100 : 0;
+	}
+
+	function scrubStart(e: PointerEvent) {
+		if (!canSeek || e.button !== 0) return;
+		(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+		scrubPct = pctAt(e);
+	}
+
+	function scrubMove(e: PointerEvent) {
+		if (!canSeek) return;
+		const pct = pctAt(e);
+		if (scrubPct !== null) scrubPct = pct;
+		else if (e.pointerType === 'mouse') hoverPct = pct;
+	}
+
+	function scrubEnd() {
+		if (scrubPct === null) return;
+		const to = (scrubPct / 100) * duration;
+		scrubPct = null;
+		send({ type: 'seek', to });
+	}
+
+	function seekBy(delta: number) {
+		if (!canSeek) return;
+		send({ type: 'seek', to: Math.max(0, Math.min(duration - 1, time + delta)) });
+	}
+
+	function onScrubKey(e: KeyboardEvent) {
+		if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+		// Não deixa a tecla chegar ao atalho da sincronia (mover o trecho).
+		e.preventDefault();
+		e.stopPropagation();
+		seekBy(e.key === 'ArrowLeft' ? -SEEK_STEP_S : SEEK_STEP_S);
+	}
+
 	onMount(() => {
 		void boot();
 		let raf = requestAnimationFrame(frame);
@@ -293,7 +354,7 @@
 			clockSeconds = Math.floor(t);
 			if (duration === 0) duration = player.duration();
 			if (progFill && duration > 0) {
-				progFill.style.width = `${Math.min(1, t / duration) * 100}%`;
+				progFill.style.width = `${scrubPct ?? Math.min(1, t / duration) * 100}%`;
 			}
 			if (!ctl) return;
 			const now = performance.now();
@@ -512,6 +573,8 @@
 		else if (k === 'v') send({ type: 'toggleSpeed' });
 		else if (k === 't') showPt = !showPt;
 		else if (k === 's') send({ type: 'openSync' });
+		else if (k === 'arrowleft') seekBy(-SEEK_STEP_S);
+		else if (k === 'arrowright') seekBy(SEEK_STEP_S);
 	}
 
 	function onKeyup(e: KeyboardEvent) {
@@ -635,24 +698,52 @@
 		</div>
 
 		<div class="prog">
-			<div class="trilha" role="img" aria-label="Progresso da música">
-				<div class="fill" bind:this={progFill}></div>
-				{#each marks as m (m.line)}
-					<span
-						class="gp"
-						class:ok={m.result?.ok}
-						class:err={m.result && !m.result.ok}
-						class:cur={!m.result && answerable?.line === m.line}
-						style:left="{m.pct}%"
-					></span>
-				{/each}
+			<div
+				class="trilha-alvo"
+				class:ativa={canSeek}
+				class:arrastando={scrubPct !== null}
+				role="slider"
+				tabindex={canSeek ? 0 : -1}
+				aria-label="Posição na música"
+				aria-valuemin={0}
+				aria-valuemax={Math.round(duration)}
+				aria-valuenow={clockSeconds}
+				aria-valuetext={clock(clockSeconds)}
+				aria-disabled={!canSeek}
+				title={canSeek ? 'Clique ou arraste para pular (← →)' : undefined}
+				data-testid="barra-tempo"
+				onpointerdown={scrubStart}
+				onpointermove={scrubMove}
+				onpointerup={scrubEnd}
+				onpointercancel={() => (scrubPct = null)}
+				onpointerleave={() => (hoverPct = null)}
+				onkeydown={onScrubKey}
+			>
+				<div class="trilha">
+					<div class="fill" bind:this={progFill}></div>
+					{#each marks as m (m.line)}
+						<span
+							class="gp"
+							class:ok={m.result?.ok}
+							class:err={m.result && !m.result.ok}
+							class:cur={!m.result && answerable?.line === m.line}
+							style:left="{m.pct}%"
+						></span>
+					{/each}
+					{#if scrubPct !== null}<span class="cabeca" style:left="{scrubPct}%"></span>{/if}
+				</div>
+				{#if tipPct !== null}
+					<span class="dica-tempo" style:left="{tipPct}%">{clock((tipPct / 100) * duration)}</span>
+				{/if}
 			</div>
 			<div class="tempos">
-				<span>{clock(clockSeconds)}</span><span>{duration > 0 ? clock(duration) : '–:––'}</span>
+				<span>{clock(scrubPct === null ? clockSeconds : (scrubPct / 100) * duration)}</span><span
+					>{duration > 0 ? clock(duration) : '–:––'}</span
+				>
 			</div>
 		</div>
 
-		<div class="t-dir">
+		<div class="t-dir" class:oculto={view?.listen}>
 			<button
 				type="button"
 				class="chip-rev"
@@ -806,7 +897,7 @@
 					onversion={chooseVersion}
 				/>
 			</div>
-		{:else}
+		{:else if !view?.listen}
 			<div class="ops" role="group" aria-label="Escolha a palavra que falta">
 				{#each shownOptions.length > 0 ? shownOptions : ['', '', '', ''] as option, i (i)}
 					{@const state = option ? optionState(option) : ''}
@@ -876,7 +967,12 @@
 		</div>
 
 		<div class="lacunas">
-			{#if (view?.totalGaps ?? 0) > 0}Lacuna <b>{Math.max(1, view?.gapNumber ?? 0)}</b> de {view?.totalGaps}{:else}Sem
+			{#if view?.listen}
+				<button class="tool" type="button" onclick={backToStart} data-testid="jogar">
+					<svg class="ic sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z" /></svg>
+					<span>Jogar esta música</span>
+				</button>
+			{:else if (view?.totalGaps ?? 0) > 0}Lacuna <b>{Math.max(1, view?.gapNumber ?? 0)}</b> de {view?.totalGaps}{:else}Sem
 				lacunas{/if}
 		</div>
 
@@ -949,11 +1045,12 @@
 		title={song.title}
 		artist={song.artist}
 		{lang}
-		{difficulty}
+		difficulty={listening ? 'ouvir' : difficulty}
 		{counts}
 		{status}
 		message={statusMessage}
 		onstart={startGame}
+		onlisten={startListen}
 		onretry={boot}
 		{hint}
 		versions={versionList}
@@ -1098,6 +1195,59 @@
 		background: var(--prog);
 	}
 
+	/* Área de toque maior que a trilha: clicar ou arrastar pula a música. */
+	.trilha-alvo {
+		position: relative;
+		padding: 8px 0;
+		margin: -8px 0;
+		touch-action: none;
+		outline: none;
+	}
+
+	.trilha-alvo.ativa {
+		cursor: pointer;
+	}
+
+	.trilha-alvo .trilha {
+		transition: height 0.15s var(--ease);
+	}
+
+	.trilha-alvo.ativa:hover .trilha,
+	.trilha-alvo.arrastando .trilha {
+		height: 6px;
+	}
+
+	.trilha-alvo:focus-visible .trilha {
+		box-shadow: 0 0 0 2px var(--page), 0 0 0 4px var(--ink);
+	}
+
+	.cabeca {
+		position: absolute;
+		top: 50%;
+		width: 14px;
+		height: 14px;
+		margin: -7px 0 0 -7px;
+		border-radius: 50%;
+		background: var(--prog);
+		box-shadow: var(--sh-card);
+		pointer-events: none;
+	}
+
+	.dica-tempo {
+		position: absolute;
+		bottom: calc(100% - 2px);
+		transform: translateX(-50%);
+		padding: 3px 7px;
+		border-radius: var(--r-s);
+		background: var(--ink);
+		color: var(--page);
+		font-size: 12.5px;
+		font-weight: 500;
+		font-variant-numeric: tabular-nums;
+		white-space: nowrap;
+		pointer-events: none;
+	}
+
 	.gp {
 		position: absolute;
 		top: 50%;
@@ -1140,6 +1290,11 @@
 		justify-content: flex-end;
 		align-items: center;
 		gap: 8px;
+	}
+
+	/* Modo ouvir: sem placar (o espaço fica, para a barra de tempo não andar). */
+	.t-dir.oculto {
+		visibility: hidden;
 	}
 
 	.chip-rev {

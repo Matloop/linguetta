@@ -10,12 +10,14 @@
 		title: string;
 		artist: string;
 		lang: MusicLanguage;
-		/** A última escolhida; recebe o foco quando a tela abre. */
-		difficulty: Difficulty;
+		/** A última escolhida ('ouvir' = modo ouvir); recebe o foco quando a tela abre. */
+		difficulty: Difficulty | 'ouvir';
 		counts: DifficultyCounts;
 		status: 'loading' | 'ready' | 'no-lyrics' | 'unavailable' | 'player-error';
 		message: string;
 		onstart: (difficulty: Difficulty) => void;
+		/** Modo ouvir: sem jogo, só a música e a letra. */
+		onlisten: () => void;
 		onretry: () => void;
 		/** Quanto o vídeo tem a mais que a faixa, se a música nunca foi sincronizada. */
 		hint?: number | null;
@@ -36,6 +38,7 @@
 		status,
 		message,
 		onstart,
+		onlisten,
 		onretry,
 		hint = null,
 		versions = [],
@@ -76,7 +79,20 @@
 		</div>
 
 		{#if status === 'ready'}
-			<div class="difs" role="group" aria-label="Dificuldade">
+			<div class="difs" role="group" aria-label="Modo">
+				<button
+					type="button"
+					class="dif ouvir"
+					bind:this={rows.ouvir}
+					onclick={onlisten}
+					data-testid="modo-ouvir"
+				>
+					<b>Ouvir</b>
+					<span class="n">Sem jogo, só a música e a letra</span>
+					<svg class="seta" viewBox="0 0 24 24" aria-hidden="true"
+						><path d="M5 12h14M13 6l6 6-6 6" /></svg
+					>
+				</button>
 				{#each DIFFICULTIES as d (d)}
 					{@const n = counts.gaps[d]}
 					<button type="button" class="dif" bind:this={rows[d]} onclick={() => onstart(d)}>
@@ -258,6 +274,16 @@
 
 	.dif:first-child {
 		border-top: 0;
+	}
+
+	/* Ouvir não é dificuldade: separa um pouco das outras linhas. */
+	.dif.ouvir {
+		background: var(--tile);
+	}
+
+	.dif.ouvir:hover,
+	.dif.ouvir:focus-visible {
+		background: var(--hover);
 	}
 
 	.dif:hover,

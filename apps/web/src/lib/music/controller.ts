@@ -80,6 +80,8 @@ export type MusicEvent =
 	/** Controles do vídeo pedidos de propósito no painel de sincronia. */
 	| { type: 'syncTogglePlay' }
 	| { type: 'syncSeek'; to: number; play?: boolean }
+	/** A pessoa pulou para outro ponto na barra de progresso (jogo, ouvir ou sincronia). */
+	| { type: 'seek'; to: number }
 	| { type: 'hidden' }
 	| { type: 'playerState'; state: PlayerState }
 	| { type: 'autoplayBlocked' }
@@ -134,6 +136,8 @@ export interface Feedback {
 
 export interface MusicView {
 	mode: Mode;
+	/** Modo ouvir: sem lacunas nem pontos. */
+	listen: boolean;
 	phase: Phase;
 	/** A linha acesa (uma só). */
 	shownLine: number;
@@ -369,6 +373,13 @@ export class MusicController {
 				if (event.play) effects.push({ type: 'play' });
 				return this.#own(effects, now);
 			}
+			case 'seek': {
+				if (!Number.isFinite(event.to)) return [];
+				const to = Math.max(0, event.to);
+				if (this.#mode === 'sync') return this.#own([{ type: 'seek', to }], now);
+				if (this.#mode !== 'game' || !this.#game) return [];
+				return this.#run(this.#game.jump(to), now);
+			}
 			case 'hidden':
 				return this.#hidden(now);
 			case 'playerState':
@@ -383,6 +394,8 @@ export class MusicController {
 			case 'ended':
 				this.#videoPlaying = false;
 				if (this.#mode !== 'game' || !this.#game) return [];
+				// Ouvir não tem resumo: volta para a escolha.
+				if (this.#session?.config.listen) return this.#backToStart(now);
 				this.#card = null;
 				return this.#run(this.#game.finishNow(), now);
 			case 'saved':
@@ -479,6 +492,7 @@ export class MusicController {
 
 		return {
 			mode: this.#mode,
+			listen: session?.config.listen ?? false,
 			phase: game?.phase ?? 'ready',
 			shownLine: this.#shown,
 			score: game?.score ?? 0,

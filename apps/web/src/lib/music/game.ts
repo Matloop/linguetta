@@ -39,6 +39,8 @@ export interface GameGapConfig {
 export interface GameConfig {
 	lines: readonly GameLineTiming[];
 	gaps: readonly GameGapConfig[];
+	/** Modo ouvir: sem lacunas e sem fim pela letra; toca até o vídeo acabar. */
+	listen?: boolean;
 }
 
 /** Lacuna com a posição dela em `gaps`. */
@@ -187,7 +189,7 @@ export class Game {
 		}
 
 		const last = this.lines[this.lines.length - 1];
-		if (last && time >= last.end + OUTRO_S) {
+		if (last && !this.#config.listen && time >= last.end + OUTRO_S) {
 			this.#changed();
 			this.phase = 'finished';
 			return [{ type: 'pause' }];
@@ -277,6 +279,30 @@ export class Game {
 		this.waitLine = null;
 		this.activeLine = index;
 		return this.#seek(this.lines[index].start, !wasPlaying);
+	}
+
+	/**
+	 * A pessoa pulou para outro ponto da música (barra de progresso). Pulando para a
+	 * frente, as lacunas abertas que ficam para trás (inclusive as da linha atual) contam
+	 * como puladas. Na espera, a música volta a tocar; pausado, continua pausado.
+	 */
+	jump(time: number): Command[] {
+		if (this.#suspended) return [];
+		if (this.phase !== 'playing' && this.phase !== 'waiting' && this.phase !== 'paused') return [];
+		this.#changed();
+		const at = Math.max(0, time);
+		const line = this.#lineAt(at);
+		const from = this.waitLine ?? this.activeLine;
+		if (line > from) this.#skipBefore(line, Math.max(0, from));
+		this.activeLine = line;
+		this.waitLine = null;
+		if (this.phase === 'paused') {
+			this.#resumeTo = 'playing';
+			return this.#seek(at, false);
+		}
+		const wasWaiting = this.phase === 'waiting';
+		this.phase = 'playing';
+		return this.#seek(at, wasWaiting);
 	}
 
 	/** Abre a sincronia: congela tudo, inclusive o contador da espera. Não mexe no vídeo. */

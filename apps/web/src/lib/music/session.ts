@@ -79,6 +79,16 @@ export function buildSession(input: SessionInput): Session {
 	};
 }
 
+/** Modo ouvir: a letra inteira, sem lacunas, tocando até o vídeo acabar. */
+export function listenSession(lyrics: readonly LyricLine[], lang: MusicLanguage): Session {
+	const lines: SessionLine[] = lyrics.map((l) => ({ ...l, tokens: tokenize(l.text, lang) }));
+	return {
+		lines,
+		gaps: [],
+		config: { lines: lines.map((l) => ({ start: l.start, end: l.end })), gaps: [], listen: true }
+	};
+}
+
 export interface DifficultyCounts {
 	/** Palavras da letra. */
 	words: number;
